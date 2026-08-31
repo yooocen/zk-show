@@ -1,0 +1,9 @@
+{
+  "id": "zk-show",
+  "name": "ZK Show 卡片关系图",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "根据 zettelkastenNo 编码，用真实线段展示卡片之间的关系：话题主线、继续讨论与题外话分支。",
+  "author": "cc",
+  "isDesktopOnly": true
+}
