@@ -295,12 +295,7 @@ class ZkShowView extends ItemView {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     ev.preventDefault();
-    // 优先在 rootEl 上 capture（鼠标/画布正常），若目标不符规范抛异常则降级到事件目标上
-    try {
-      this.rootEl.setPointerCapture(ev.pointerId);
-    } catch {
-      if (ev.target instanceof Element) ev.target.setPointerCapture(ev.pointerId);
-    }
+    this.rootEl.setPointerCapture(ev.pointerId);
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     if (this.pointerDownTarget?.closest(".zk-show-link-indicator")) {
@@ -369,12 +364,7 @@ class ZkShowView extends ItemView {
       Math.abs(endPoint.x - this.dragStartX) > threshold || Math.abs(endPoint.y - this.dragStartY) > threshold;
     const moved = this.dragMoved || dragged;
     this.activePointers.delete(ev.pointerId);
-    // 根据 capture 方式（rootEl 优先，降级到事件目标）同步释放
-    if (this.rootEl.hasPointerCapture(ev.pointerId)) {
-      this.rootEl.releasePointerCapture(ev.pointerId);
-    } else if (ev.target instanceof Element && ev.target.hasPointerCapture(ev.pointerId)) {
-      ev.target.releasePointerCapture(ev.pointerId);
-    }
+    if (this.rootEl.hasPointerCapture(ev.pointerId)) this.rootEl.releasePointerCapture(ev.pointerId);
 
     if (this.activePointers.size >= 2) {
       this.beginPinch();
