@@ -348,7 +348,12 @@ class ZkShowView extends ItemView {
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     const wasSinglePointer = this.activePointers.size === 1;
-    const moved = this.dragMoved;
+    // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
+    // 置位，但按下与抬起位置已发生位移，此时应视为拖动而非点击，避免误弹出内容框。
+    const endPoint = this.pointFromPointer(ev);
+    const dragged =
+      Math.abs(endPoint.x - this.dragStartX) > 3 || Math.abs(endPoint.y - this.dragStartY) > 3;
+    const moved = this.dragMoved || dragged;
     this.activePointers.delete(ev.pointerId);
     if (this.rootEl.hasPointerCapture(ev.pointerId)) this.rootEl.releasePointerCapture(ev.pointerId);
 
