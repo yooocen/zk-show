@@ -286,13 +286,21 @@ class ZkShowView extends ItemView {
     this.rootEl.classList.add("is-panning");
   }
 
+  private static dragThreshold(pointerType: string): number {
+    // 触摸轻触手指有微小位移（slop），阈值放宽避免误判为拖动
+    return pointerType === "touch" ? 10 : 3;
+  }
+
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     ev.preventDefault();
-    // 捕获在事件目标上：rootEl 不符合 setPointerCapture 的「事件目标或 shadow host」
-    // 限定，对于 SVG 元素（灯泡）会抛异常，导致 beginPan 无法执行、pointermove 被忽略。
-    (ev.target as Element).setPointerCapture(ev.pointerId);
+    // 优先在 rootEl 上 capture（鼠标/画布正常），若目标不符规范抛异常则降级到事件目标上
+    try {
+      this.rootEl.setPointerCapture(ev.pointerId);
+    } catch {
+      if (ev.target instanceof Element) ev.target.setPointerCapture(ev.pointerId);
+    }
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     if (this.pointerDownTarget?.closest(".zk-show-link-indicator")) {
@@ -337,7 +345,8 @@ class ZkShowView extends ItemView {
     const point = this.pointFromPointer(ev);
     const dx = point.x - this.dragStartX;
     const dy = point.y - this.dragStartY;
-    if (!this.dragMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    const threshold = ZkShowView.dragThreshold(ev.pointerType);
+    if (!this.dragMoved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
       this.dragMoved = true;
       this.rootEl.classList.add("is-panning");
     }
@@ -355,13 +364,17 @@ class ZkShowView extends ItemView {
     // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
     // 置位，但按下与抬起位置已发生位移，此时应视为拖动而非点击，避免误弹出内容框。
     const endPoint = this.pointFromPointer(ev);
+    const threshold = ZkShowView.dragThreshold(ev.pointerType);
     const dragged =
-      Math.abs(endPoint.x - this.dragStartX) > 3 || Math.abs(endPoint.y - this.dragStartY) > 3;
+      Math.abs(endPoint.x - this.dragStartX) > threshold || Math.abs(endPoint.y - this.dragStartY) > threshold;
     const moved = this.dragMoved || dragged;
     this.activePointers.delete(ev.pointerId);
-    // 与 pointerdown 的 capture 目标一致：事件目标优先，rootEl 兜底
-    const captureTarget = ev.target instanceof Element ? ev.target : this.rootEl;
-    if (captureTarget.hasPointerCapture(ev.pointerId)) captureTarget.releasePointerCapture(ev.pointerId);
+    // 根据 capture 方式（rootEl 优先，降级到事件目标）同步释放
+    if (this.rootEl.hasPointerCapture(ev.pointerId)) {
+      this.rootEl.releasePointerCapture(ev.pointerId);
+    } else if (ev.target instanceof Element && ev.target.hasPointerCapture(ev.pointerId)) {
+      ev.target.releasePointerCapture(ev.pointerId);
+    }
 
     if (this.activePointers.size >= 2) {
       this.beginPinch();
