@@ -172,3 +172,22 @@ export class TopicGraph {
     return [...this.byCode.values()];
   }
 }
+
+export interface RootTopicItem {
+  code: string;
+  title: string;
+  isGhost: boolean;
+}
+
+/** 收集所有根话题（无父节点的顶层编码），按数字/字典序排序。 */
+export function collectRootTopics(graph: TopicGraph): RootTopicItem[] {
+  return graph
+    .allNodes()
+    .filter((node) => node.parentId === null)
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+    .map((node) => ({
+      code: node.code,
+      title: node.isGhost ? node.code : node.title,
+      isGhost: node.isGhost,
+    }));
+}

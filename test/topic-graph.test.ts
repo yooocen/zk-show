@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TopicGraph } from "../src/topic-graph";
+import { collectRootTopics, TopicGraph } from "../src/topic-graph";
 
 describe("TopicGraph", () => {
   it("按直接父子边区分数字继续与字母题外分支", () => {
@@ -69,5 +69,20 @@ describe("TopicGraph", () => {
     ]);
 
     expect(graph.node("1/1")).toMatchObject({ path: "first.md", title: "第一张" });
+  });
+
+  it("collectRootTopics 返回全部根话题及标题/幽灵标记", () => {
+    const graph = new TopicGraph([
+      { path: "root1.md", basename: "数学", no: "1" },
+      { path: "child1.md", basename: "子卡", no: "1/41" },
+      { path: "root2.md", basename: "编程", no: "2" },
+      { path: "deep.md", basename: "深处", no: "3/a/1" },
+    ]);
+    const items = collectRootTopics(graph);
+    expect(items.map((i) => i.code)).toEqual(["1", "2", "3"]);
+    expect(items.find((i) => i.code === "1")).toMatchObject({ title: "数学", isGhost: false });
+    expect(items.find((i) => i.code === "2")).toMatchObject({ title: "编程", isGhost: false });
+    // 根 3 只有真实子级 3/a/1，根节点本身是幽灵
+    expect(items.find((i) => i.code === "3")).toMatchObject({ title: "3", isGhost: true });
   });
 });
