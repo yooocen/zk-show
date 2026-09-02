@@ -290,7 +290,9 @@ class ZkShowView extends ItemView {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     ev.preventDefault();
-    this.rootEl.setPointerCapture(ev.pointerId);
+    // 捕获在事件目标上：rootEl 不符合 setPointerCapture 的「事件目标或 shadow host」
+    // 限定，对于 SVG 元素（灯泡）会抛异常，导致 beginPan 无法执行、pointermove 被忽略。
+    (ev.target as Element).setPointerCapture(ev.pointerId);
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     if (this.pointerDownTarget?.closest(".zk-show-link-indicator")) {
@@ -357,7 +359,9 @@ class ZkShowView extends ItemView {
       Math.abs(endPoint.x - this.dragStartX) > 3 || Math.abs(endPoint.y - this.dragStartY) > 3;
     const moved = this.dragMoved || dragged;
     this.activePointers.delete(ev.pointerId);
-    if (this.rootEl.hasPointerCapture(ev.pointerId)) this.rootEl.releasePointerCapture(ev.pointerId);
+    // 与 pointerdown 的 capture 目标一致：事件目标优先，rootEl 兜底
+    const captureTarget = ev.target instanceof Element ? ev.target : this.rootEl;
+    if (captureTarget.hasPointerCapture(ev.pointerId)) captureTarget.releasePointerCapture(ev.pointerId);
 
     if (this.activePointers.size >= 2) {
       this.beginPinch();
