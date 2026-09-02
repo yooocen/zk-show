@@ -294,16 +294,17 @@ class ZkShowView extends ItemView {
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
+    // 先记录指针状态，再尝试 capture。rootEl 可能不是事件目标（如 SVG 灯泡），
+    // setPointerCapture 会抛异常——若在记录前就抛出，onPointerEnd 会因找不到指针
+    // 而提前 return，navigateFromTarget 永不执行，弹出框无法打开。
+    this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
+    this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     ev.preventDefault();
-    // rootEl 可能不是事件目标（如 SVG 灯泡），setPointerCapture 会抛异常；
-    // 捕获失败时回退到事件目标上，确保 activePointers 与 beginPan 仍能执行。
     try {
       this.rootEl.setPointerCapture(ev.pointerId);
     } catch {
-      if (ev.target instanceof Element) ev.target.setPointerCapture(ev.pointerId);
+      if (this.pointerDownTarget instanceof Element) this.pointerDownTarget.setPointerCapture(ev.pointerId);
     }
-    this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
-    this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     if (this.pointerDownTarget?.closest(".zk-show-link-indicator")) {
       this.dragActive = false;
       this.dragMoved = false;
