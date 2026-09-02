@@ -7,6 +7,9 @@ import { pinchScale, zoomViewportAt, type ViewportPoint, type ViewportState } fr
 import { linkIndicatorState, scanInlineLinks, type InlineLink } from "./inline-links";
 import { shouldPreviewLinkOnPointer } from "./hover-link";
 import { ZkNoFormModal } from "./zkno-form-modal";
+import { indexFingerprint } from "./index-fingerprint";
+import { collectRootTopics } from "./topic-graph";
+import { TopicSwitch } from "./topic-switch";
 
 export const VIEW_TYPE_ZK_SHOW = "zk-show-view";
 
@@ -14,9 +17,12 @@ export default class ZkShowPlugin extends Plugin {
   index = new ThreadIndex([]);
   private view: ZkShowView | null = null;
   private rebuildTimer: number | null = null;
+  private lastFingerprint = "";
 
   onload(): void {
-    this.index = this.scan();
+    const records = this.collectRecords();
+    this.lastFingerprint = indexFingerprint(records);
+    this.index = new ThreadIndex(records);
     this.registerHoverLinkSource("zk-show", {
       display: "ZK Show 卡片关系图",
       defaultMod: true,
@@ -60,12 +66,19 @@ export default class ZkShowPlugin extends Plugin {
   scheduleRebuild(): void {
     if (this.rebuildTimer) window.clearTimeout(this.rebuildTimer);
     this.rebuildTimer = window.setTimeout(() => {
-      this.index = this.scan();
+      const records = this.collectRecords();
+      const fp = indexFingerprint(records);
+      // 图谱依赖的数据（路径、编码、标题、双链）没有实际变化时跳过重建。
+      // 覆盖「编辑后立即撤销回到原状」「resolved 事件空触发」等场景，
+      // 避免不必要的图谱刷新与视口（缩放）重置。
+      if (fp === this.lastFingerprint) return;
+      this.lastFingerprint = fp;
+      this.index = new ThreadIndex(records);
       this.view?.refresh();
     }, 300);
   }
 
-  scan(): ThreadIndex {
+  private collectRecords(): ZRecord[] {
     const records: ZRecord[] = [];
     for (const f of this.app.vault.getMarkdownFiles()) {
       const cache = this.app.metadataCache.getFileCache(f);
@@ -78,7 +91,7 @@ export default class ZkShowPlugin extends Plugin {
         records.push({ path: f.path, basename: f.basename, no, links });
       }
     }
-    return new ThreadIndex(records);
+    return records;
   }
 }
 
@@ -86,6 +99,7 @@ class ZkShowView extends ItemView {
   private readonly plugin: ZkShowPlugin;
   private rootEl!: HTMLElement;
   private canvasEl!: HTMLElement;
+  private topicSwitch: TopicSwitch | null = null;
   private panX = 0;
   private panY = 0;
   private scale = 1;
@@ -143,6 +157,12 @@ class ZkShowView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.rootEl = this.contentEl.createDiv({ cls: "zk-show-root" });
+    this.topicSwitch = new TopicSwitch();
+    this.topicSwitch.onChange((code) => {
+      const node = this.plugin.index.node(code);
+      this.navigateToCode(code, node?.path ?? null);
+    });
+    this.rootEl.appendChild(this.topicSwitch.el);
     this.rootEl.addEventListener("pointerdown", this.onPointerDown);
     this.rootEl.addEventListener("pointermove", this.onPointerMove);
     this.rootEl.addEventListener("pointerup", this.onPointerEnd);
@@ -169,6 +189,8 @@ class ZkShowView extends ItemView {
     this.endInteraction();
     this.closeHintPopover();
     this.closeLinkPopover();
+    this.topicSwitch?.destroy();
+    this.topicSwitch = null;
     this.hoverPopover = null;
     this.linkPreviewTarget = null;
     this.linkPreviewPath = null;
@@ -254,7 +276,7 @@ class ZkShowView extends ItemView {
 
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     ev.preventDefault();
     this.rootEl.setPointerCapture(ev.pointerId);
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -272,7 +294,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerMove = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     ev.preventDefault();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -313,7 +335,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerEnd = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     const wasSinglePointer = this.activePointers.size === 1;
     const moved = this.dragMoved;
@@ -748,6 +770,20 @@ class ZkShowView extends ItemView {
     this.currentLayout = null;
     root.empty();
 
+    this.topicSwitch = new TopicSwitch();
+    this.topicSwitch.onChange((code) => {
+      const node = this.plugin.index.node(code);
+      this.navigateToCode(code, node?.path ?? null);
+    });
+    this.topicSwitch.setOptions(
+      collectRootTopics(this.plugin.index).map((item) => ({
+        code: item.code,
+        title: item.title,
+        disabled: item.isGhost,
+      }))
+    );
+    root.appendChild(this.topicSwitch.el);
+
     // 画布层：随拖动平移（像 zettelkasten-forest 一样自由拖拽）
     const hasActivePointer = this.activePointers.size > 0;
     const now = Date.now();
@@ -759,7 +795,8 @@ class ZkShowView extends ItemView {
     if (!hasActivePointer && !preserveViewport) {
       this.panX = 0;
       this.panY = 0;
-      this.scale = 1;
+      // 保留用户已设定的缩放比例：切换 md 笔记或重建时仅重置平移并重新居中，
+      // 不再把 scale 重置为 1。缩放比例的显式重置由双击 resetViewport 负责。
       this.activePointers.clear();
       this.endInteraction();
     }
@@ -771,7 +808,12 @@ class ZkShowView extends ItemView {
       this.focusCode = code;
       this.focusExpectedPath = null;
     }
-    if (code === null) return;
+    this.topicSwitch?.setSelected(
+      code !== null && !this.plugin.index.node(code)?.isGhost ? code : null
+    );
+    if (code === null) {
+      return;
+    }
 
     const vr = computeView(this.plugin.index, code);
     if (!vr) {
