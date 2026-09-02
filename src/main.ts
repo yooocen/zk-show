@@ -778,8 +778,9 @@ class ZkShowView extends ItemView {
     this.closeHintPopover();
     this.closeLinkPopover();
     this.currentLayout = null;
-    // 只移除旧画布，保留 TopicSwitch 等固定 UI 子元素
+    // 只移除旧画布与旧空提示，保留 TopicSwitch 等固定 UI 子元素
     if (this.canvasEl) this.canvasEl.remove();
+    root.querySelectorAll(".zk-show-empty").forEach((el) => el.remove());
 
     // TopicSwitch 在视图生命周期内仅创建一次，避免重复重建导致面板状态丢失
     if (!this.topicSwitch) {
@@ -817,7 +818,7 @@ class ZkShowView extends ItemView {
     this.applyViewport();
 
     const active = this.app.workspace.getActiveFile();
-    const code = pinned ? this.focusCode : this.resolveActiveCode(active, canvas);
+    const code = pinned ? this.focusCode : this.resolveActiveCode(active);
     if (!pinned) {
       this.focusCode = code;
       this.focusExpectedPath = null;
@@ -831,7 +832,7 @@ class ZkShowView extends ItemView {
 
     const vr = computeView(this.plugin.index, code);
     if (!vr) {
-      this.empty(canvas, `未在索引中找到编码 ${code}（可能索引尚未加载），请稍候或切换一下笔记。`);
+      this.empty(`未在索引中找到编码 ${code}（可能索引尚未加载），请稍候或切换一下笔记。`);
       return;
     }
 
@@ -851,21 +852,21 @@ class ZkShowView extends ItemView {
     }
   }
 
-  private resolveActiveCode(active: TFile | null, el: HTMLElement): string | null {
+  private resolveActiveCode(active: TFile | null): string | null {
     if (!active) {
-      this.empty(el, "打开一篇带 zettelkastenNo 前台的笔记，这里会展示它与其他卡片的关系。");
+      this.empty("打开一篇带 zettelkastenNo 前台的笔记，这里会展示它与其他卡片的关系。");
       return null;
     }
     const no = this.app.metadataCache.getFileCache(active)?.frontmatter?.zettelkastenNo;
     const code = normalizeZettelkastenNo(no);
     if (code === null) {
-      this.empty(el, `当前笔记「${active.basename}」没有有效的 zettelkastenNo 前台编码，无法参与关系展示。`);
+      this.empty(`当前笔记「${active.basename}」没有有效的 zettelkastenNo 前台编码，无法参与关系展示。`);
       return null;
     }
     return code;
   }
 
-  private empty(el: HTMLElement, msg: string): void {
-    el.createDiv({ cls: "zk-show-empty", text: msg });
+  private empty(msg: string): void {
+    this.rootEl.createDiv({ cls: "zk-show-empty", text: msg });
   }
 }
