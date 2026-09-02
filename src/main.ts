@@ -295,7 +295,13 @@ class ZkShowView extends ItemView {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     ev.preventDefault();
-    this.rootEl.setPointerCapture(ev.pointerId);
+    // rootEl 可能不是事件目标（如 SVG 灯泡），setPointerCapture 会抛异常；
+    // 捕获失败时回退到事件目标上，确保 activePointers 与 beginPan 仍能执行。
+    try {
+      this.rootEl.setPointerCapture(ev.pointerId);
+    } catch {
+      if (ev.target instanceof Element) ev.target.setPointerCapture(ev.pointerId);
+    }
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     if (this.pointerDownTarget?.closest(".zk-show-link-indicator")) {
