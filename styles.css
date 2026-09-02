@@ -407,6 +407,24 @@
   pointer-events: none;
 }
 
+/* ===== 诊断面板：显示在画面上方，方便触摸端用户拷贝 ===== */
+.zk-show-diagnostic {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.85);
+  color: #0f0;
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* ===== zettelkastenNo 设置表单 ===== */
 .zk-show-form {
   display: flex;

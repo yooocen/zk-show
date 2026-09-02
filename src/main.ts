@@ -133,6 +133,18 @@ class ZkShowView extends ItemView {
   private linkPreviewPath: string | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private allowResizeCenter = false;
+  private diagEl: HTMLElement | null = null;
+
+  /** 诊断：在画面上方叠加一个半透明面板显示日志，方便触摸端用户拷贝。 */
+  private diag(msg: string): void {
+    if (!this.diagEl) {
+      this.diagEl = this.rootEl.createDiv({ cls: "zk-show-diagnostic" });
+    }
+    const line = this.diagEl.createDiv({ text: msg });
+    while (this.diagEl.children.length > 12) {
+      this.diagEl.removeChild(this.diagEl.firstChild!);
+    }
+  }
 
   onActiveLeafChange(leaf: WorkspaceLeaf | null): void {
     // 以事件携带的 leaf 视图文件为准：过渡期 getActiveFile() 可能返回旧文件或 null，
@@ -298,7 +310,7 @@ class ZkShowView extends ItemView {
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     // 诊断：记录灯泡/指示器点击的事件类型
     if (ev.pointerType === "touch" && this.pointerDownTarget?.closest(".zk-show-hint-marker, .zk-show-link-indicator")) {
-      console.debug("[zk-show] touch down on hint/link", { target: this.pointerDownTarget.className, pointerId: ev.pointerId });
+      this.diag(`down: target=${this.pointerDownTarget.className} type=${ev.pointerType} id=${ev.pointerId}`);
     }
     ev.preventDefault();
     try {
@@ -364,7 +376,7 @@ class ZkShowView extends ItemView {
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
     if (!this.activePointers.has(ev.pointerId)) {
       // 诊断：指针未记录时提前返回
-      if (ev.pointerType === "touch") console.debug("[zk-show] touch up MISSING pointerId", ev.pointerId);
+      if (ev.pointerType === "touch") this.diag(`up: MISSING pointerId=${ev.pointerId}`);
       return;
     }
     const wasSinglePointer = this.activePointers.size === 1;
@@ -377,7 +389,7 @@ class ZkShowView extends ItemView {
     const moved = this.dragMoved || dragged;
     // 诊断：灯泡/指示器 tap 判定
     if (ev.pointerType === "touch" && this.pointerDownTarget?.closest(".zk-show-hint-marker, .zk-show-link-indicator")) {
-      console.debug("[zk-show] touch up tap judgment", { moved, dragMoved: this.dragMoved, dragged, wasSinglePointer });
+      this.diag(`up: moved=${moved} dragMoved=${this.dragMoved} dragged=${dragged} single=${wasSinglePointer}`);
     }
     this.activePointers.delete(ev.pointerId);
     if (this.rootEl.hasPointerCapture(ev.pointerId)) this.rootEl.releasePointerCapture(ev.pointerId);
@@ -442,7 +454,7 @@ class ZkShowView extends ItemView {
     if (target?.closest(".zk-show-hint-marker")) {
       const markerId = target.closest(".zk-show-hint-marker")?.getAttribute("data-hint-id");
       // 诊断：确认 navigateFromTarget 找到 hint marker
-      console.debug("[zk-show] navigateFromTarget hint-marker", { markerId, targetTag: target?.tagName, targetClass: target?.className });
+      this.diag(`nav: markerId=${markerId} target=${target?.tagName} cls=${target?.className}`);
       if (markerId) this.toggleHintPopover(markerId, target.closest(".zk-show-hint-marker"));
       return;
     }
@@ -726,7 +738,7 @@ class ZkShowView extends ItemView {
   private toggleHintPopover(id: string, markerEl: Element | null): void {
     const marker = this.currentLayout?.markers.find((candidate) => candidate.id === id);
     // 诊断：确认 toggleHintPopover 是否被调用及 marker 是否找到
-    console.debug("[zk-show] toggleHintPopover called", { id, found: !!marker, hasLayout: !!this.currentLayout, hasMarkerEl: !!markerEl });
+    this.diag(`toggle: id=${id} found=${!!marker} layout=${!!this.currentLayout} el=${!!markerEl}`);
     if (!marker) return;
     if (this.openHintId === id) {
       this.closeHintPopover();
