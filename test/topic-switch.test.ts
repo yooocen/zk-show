@@ -44,4 +44,25 @@ describe("TopicSwitch", () => {
     expect(sw.el.querySelector(".zk-show-topic-switch-panel")?.classList.contains("is-open")).toBe(false);
     sw.destroy();
   });
+
+  it("点击组件外部时收起面板", () => {
+    const sw = new TopicSwitch();
+    document.body.appendChild(sw.el);
+    sw.setOptions([{ code: "1", title: "数学", disabled: false }]);
+    sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-trigger")!.click();
+    expect(sw.el.querySelector(".zk-show-topic-switch-panel")?.classList.contains("is-open")).toBe(true);
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(sw.el.querySelector(".zk-show-topic-switch-panel")?.classList.contains("is-open")).toBe(false);
+    sw.destroy();
+  });
+
+  it("destroy 后不再响应外部点击", () => {
+    const sw = new TopicSwitch();
+    document.body.appendChild(sw.el);
+    sw.setOptions([{ code: "1", title: "数学", disabled: false }]);
+    sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-trigger")!.click();
+    sw.destroy();
+    document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    expect(sw.el.isConnected).toBe(false);
+  });
 });

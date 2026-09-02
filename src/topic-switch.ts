@@ -16,6 +16,7 @@ export class TopicSwitch {
   private selectedCode: string | null = null;
   private selectHandler: (code: string) => void = () => {};
   private readonly pointerDownHandler: (ev: PointerEvent) => void;
+  private readonly outsidePointerHandler: (ev: PointerEvent) => void;
 
   constructor() {
     this.el = document.createElement("div");
@@ -40,6 +41,11 @@ export class TopicSwitch {
 
     this.pointerDownHandler = (ev) => ev.stopPropagation();
     this.el.addEventListener("pointerdown", this.pointerDownHandler);
+
+    this.outsidePointerHandler = (ev) => {
+      if (ev.target instanceof Node && !this.el.contains(ev.target)) this.close();
+    };
+    document.addEventListener("pointerdown", this.outsidePointerHandler);
   }
 
   setOptions(options: TopicSwitchOption[]): void {
@@ -105,6 +111,7 @@ export class TopicSwitch {
 
   destroy(): void {
     this.el.removeEventListener("pointerdown", this.pointerDownHandler);
+    document.removeEventListener("pointerdown", this.outsidePointerHandler);
     this.el.remove();
   }
 }

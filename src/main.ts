@@ -770,6 +770,7 @@ class ZkShowView extends ItemView {
     this.currentLayout = null;
     root.empty();
 
+    this.topicSwitch?.destroy();
     this.topicSwitch = new TopicSwitch();
     this.topicSwitch.onChange((code) => {
       const node = this.plugin.index.node(code);
