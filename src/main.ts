@@ -386,7 +386,7 @@ class ZkShowView extends ItemView {
     const threshold = ZkShowView.dragThreshold(ev.pointerType);
     const dragged =
       Math.abs(endPoint.x - this.dragStartX) > threshold || Math.abs(endPoint.y - this.dragStartY) > threshold;
-    const moved = this.dragMoved || dragged;
+    const moved = ev.pointerType === "touch" ? this.dragMoved : (this.dragMoved || dragged);
     // 诊断：灯泡/指示器 tap 判定
     if (ev.pointerType === "touch" && this.pointerDownTarget?.closest(".zk-show-hint-marker, .zk-show-link-indicator")) {
       this.diag(`up: moved=${moved} dragMoved=${this.dragMoved} dragged=${dragged} single=${wasSinglePointer}`);
