@@ -137,7 +137,15 @@ class ZkShowView extends ItemView {
   onActiveLeafChange(leaf: WorkspaceLeaf | null): void {
     // navigateToCode 在钉住期内已由 refresh(true) 完成渲染，
     // 跳过此处 active-leaf-change 触发的重复刷新，避免重建 TopicSwitch 把刚展开的面板清掉。
-    if (this.focusCode !== null && this.focusExpectedPath !== null && Date.now() < this.focusPinnedUntil) return;
+    // 但用户主动切换到其他文件时仍需刷新。
+    const active = this.app.workspace.getActiveFile();
+    const pinned = this.focusCode !== null && this.focusExpectedPath !== null && Date.now() < this.focusPinnedUntil;
+    if (pinned) {
+      // 过渡中（active 为 null）或已到达目标文件：跳过
+      if (!active || active.path === this.focusExpectedPath) return;
+      // 用户主动切换到其他文件：清除钉住、继续刷新
+      this.focusExpectedPath = null;
+    }
     this.refresh();
   }
 
