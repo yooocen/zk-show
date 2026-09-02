@@ -135,6 +135,9 @@ class ZkShowView extends ItemView {
   private allowResizeCenter = false;
 
   onActiveLeafChange(leaf: WorkspaceLeaf | null): void {
+    // navigateToCode 在钉住期内已由 refresh(true) 完成渲染，
+    // 跳过此处 active-leaf-change 触发的重复刷新，避免重建 TopicSwitch 把刚展开的面板清掉。
+    if (this.focusCode !== null && this.focusExpectedPath !== null && Date.now() < this.focusPinnedUntil) return;
     this.refresh();
   }
 
