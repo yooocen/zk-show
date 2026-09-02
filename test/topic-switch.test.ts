@@ -65,4 +65,19 @@ describe("TopicSwitch", () => {
     document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
     expect(sw.el.isConnected).toBe(false);
   });
+
+  it("多次 setOptions 刷新后触发按钮仍能立即展开面板", () => {
+    const sw = new TopicSwitch();
+    document.body.appendChild(sw.el);
+    sw.setOptions([{ code: "1", title: "数学", disabled: false }]);
+    sw.setSelected("1");
+    sw.setOptions([{ code: "1", title: "数学", disabled: false }, { code: "2", title: "编程", disabled: true }]);
+    sw.setSelected("2");
+    const trigger = sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-trigger")!;
+    trigger.click();
+    expect(sw.el.querySelector(".zk-show-topic-switch-panel")?.classList.contains("is-open")).toBe(true);
+    trigger.click();
+    expect(sw.el.querySelector(".zk-show-topic-switch-panel")?.classList.contains("is-open")).toBe(false);
+    sw.destroy();
+  });
 });

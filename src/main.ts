@@ -173,12 +173,6 @@ class ZkShowView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.rootEl = this.contentEl.createDiv({ cls: "zk-show-root" });
-    this.topicSwitch = new TopicSwitch();
-    this.topicSwitch.onChange((code) => {
-      const node = this.plugin.index.node(code);
-      this.navigateToCode(code, node?.path ?? null);
-    });
-    this.rootEl.appendChild(this.topicSwitch.el);
     this.rootEl.addEventListener("pointerdown", this.onPointerDown);
     this.rootEl.addEventListener("pointermove", this.onPointerMove);
     this.rootEl.addEventListener("pointerup", this.onPointerEnd);
@@ -784,14 +778,18 @@ class ZkShowView extends ItemView {
     this.closeHintPopover();
     this.closeLinkPopover();
     this.currentLayout = null;
-    root.empty();
+    // 只移除旧画布，保留 TopicSwitch 等固定 UI 子元素
+    if (this.canvasEl) this.canvasEl.remove();
 
-    this.topicSwitch?.destroy();
-    this.topicSwitch = new TopicSwitch();
-    this.topicSwitch.onChange((code) => {
-      const node = this.plugin.index.node(code);
-      this.navigateToCode(code, node?.path ?? null);
-    });
+    // TopicSwitch 在视图生命周期内仅创建一次，避免重复重建导致面板状态丢失
+    if (!this.topicSwitch) {
+      this.topicSwitch = new TopicSwitch();
+      this.topicSwitch.onChange((code) => {
+        const node = this.plugin.index.node(code);
+        this.navigateToCode(code, node?.path ?? null);
+      });
+      root.appendChild(this.topicSwitch.el);
+    }
     this.topicSwitch.setOptions(
       collectRootTopics(this.plugin.index).map((item) => ({
         code: item.code,
@@ -799,7 +797,6 @@ class ZkShowView extends ItemView {
         disabled: item.isGhost,
       }))
     );
-    root.appendChild(this.topicSwitch.el);
 
     // 画布层：随拖动平移（像 zettelkasten-forest 一样自由拖拽）
     const hasActivePointer = this.activePointers.size > 0;
