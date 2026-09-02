@@ -294,11 +294,12 @@ class ZkShowView extends ItemView {
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
-    // 先记录指针状态，再尝试 capture。rootEl 可能不是事件目标（如 SVG 灯泡），
-    // setPointerCapture 会抛异常——若在记录前就抛出，onPointerEnd 会因找不到指针
-    // 而提前 return，navigateFromTarget 永不执行，弹出框无法打开。
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
+    // 诊断：记录灯泡/指示器点击的事件类型
+    if (ev.pointerType === "touch" && this.pointerDownTarget?.closest(".zk-show-hint-marker, .zk-show-link-indicator")) {
+      console.debug("[zk-show] touch down on hint/link", { target: this.pointerDownTarget.className, pointerId: ev.pointerId });
+    }
     ev.preventDefault();
     try {
       this.rootEl.setPointerCapture(ev.pointerId);
@@ -361,7 +362,11 @@ class ZkShowView extends ItemView {
 
   private onPointerEnd = (ev: PointerEvent): void => {
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
-    if (!this.activePointers.has(ev.pointerId)) return;
+    if (!this.activePointers.has(ev.pointerId)) {
+      // 诊断：指针未记录时提前返回
+      if (ev.pointerType === "touch") console.debug("[zk-show] touch up MISSING pointerId", ev.pointerId);
+      return;
+    }
     const wasSinglePointer = this.activePointers.size === 1;
     // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
     // 置位，但按下与抬起位置已发生位移，此时应视为拖动而非点击，避免误弹出内容框。
@@ -370,6 +375,10 @@ class ZkShowView extends ItemView {
     const dragged =
       Math.abs(endPoint.x - this.dragStartX) > threshold || Math.abs(endPoint.y - this.dragStartY) > threshold;
     const moved = this.dragMoved || dragged;
+    // 诊断：灯泡/指示器 tap 判定
+    if (ev.pointerType === "touch" && this.pointerDownTarget?.closest(".zk-show-hint-marker, .zk-show-link-indicator")) {
+      console.debug("[zk-show] touch up tap judgment", { moved, dragMoved: this.dragMoved, dragged, wasSinglePointer });
+    }
     this.activePointers.delete(ev.pointerId);
     if (this.rootEl.hasPointerCapture(ev.pointerId)) this.rootEl.releasePointerCapture(ev.pointerId);
 
@@ -432,6 +441,8 @@ class ZkShowView extends ItemView {
     }
     if (target?.closest(".zk-show-hint-marker")) {
       const markerId = target.closest(".zk-show-hint-marker")?.getAttribute("data-hint-id");
+      // 诊断：确认 navigateFromTarget 找到 hint marker
+      console.debug("[zk-show] navigateFromTarget hint-marker", { markerId, targetTag: target?.tagName, targetClass: target?.className });
       if (markerId) this.toggleHintPopover(markerId, target.closest(".zk-show-hint-marker"));
       return;
     }
@@ -714,6 +725,8 @@ class ZkShowView extends ItemView {
 
   private toggleHintPopover(id: string, markerEl: Element | null): void {
     const marker = this.currentLayout?.markers.find((candidate) => candidate.id === id);
+    // 诊断：确认 toggleHintPopover 是否被调用及 marker 是否找到
+    console.debug("[zk-show] toggleHintPopover called", { id, found: !!marker, hasLayout: !!this.currentLayout, hasMarkerEl: !!markerEl });
     if (!marker) return;
     if (this.openHintId === id) {
       this.closeHintPopover();
