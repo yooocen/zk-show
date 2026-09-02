@@ -8,6 +8,8 @@
   cursor: grab;
   touch-action: none;
   overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .zk-show-canvas {
@@ -17,11 +19,6 @@
 
 .zk-show-root.is-panning {
   cursor: grabbing;
-  user-select: none;
-}
-
-.zk-show-root.is-panning * {
-  user-select: none;
 }
 
 .zk-show-root .zk-show-lines {

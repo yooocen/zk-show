@@ -181,6 +181,8 @@ class ZkShowView extends ItemView {
     this.rootEl.addEventListener("keydown", this.onKeyDown);
     this.rootEl.addEventListener("pointerover", this.onLinkPointerOver);
     this.rootEl.addEventListener("pointerout", this.onLinkPointerOut);
+    // 阻止原生拖拽（SVG role=button 元素按下拖动会触发 dragstart 吞掉 pointermove）
+    this.rootEl.addEventListener("dragstart", (ev) => ev.preventDefault());
     this.resizeObserver = new ResizeObserver(() => {
       if (this.allowResizeCenter && this.activePointers.size === 0) this.centerCanvas();
     });
