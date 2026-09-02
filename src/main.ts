@@ -1,4 +1,4 @@
-import { ItemView, Plugin, TFile, WorkspaceLeaf, type HoverPopover } from "obsidian";
+import { FileView, ItemView, Plugin, TFile, WorkspaceLeaf, type HoverPopover } from "obsidian";
 import { computeView, ThreadIndex, type ZRecord } from "./model";
 import { layoutView, renderLayout, type Layout } from "./renderer";
 import { closeHint, hintDescription, popoverPosition, toggleHint } from "./hidden-hint-popover";
@@ -135,15 +135,20 @@ class ZkShowView extends ItemView {
   private allowResizeCenter = false;
 
   onActiveLeafChange(leaf: WorkspaceLeaf | null): void {
-    // navigateToCode 在钉住期内已由 refresh(true) 完成渲染，
-    // 跳过此处 active-leaf-change 触发的重复刷新，避免重建 TopicSwitch 把刚展开的面板清掉。
-    // 但用户主动切换到其他文件时仍需刷新。
-    const active = this.app.workspace.getActiveFile();
+    // 以事件携带的 leaf 视图文件为准：过渡期 getActiveFile() 可能返回旧文件或 null，
+    // 而事件触发时 leaf.view.file 已就绪，能可靠区分导航自身的 openFile 与用户主动切换。
+    const activeFile = (leaf?.view instanceof FileView ? leaf.view.file : null) ?? this.app.workspace.getActiveFile();
+    const activePath = activeFile?.path ?? null;
     const pinned = this.focusCode !== null && this.focusExpectedPath !== null && Date.now() < this.focusPinnedUntil;
     if (pinned) {
-      // 过渡中（active 为 null）或已到达目标文件：跳过
-      if (!active || active.path === this.focusExpectedPath) return;
-      // 用户主动切换到其他文件：清除钉住、继续刷新
+      // 导航自身的 openFile 已生效：到达目标文件，解除钉住并跳过重复刷新
+      if (activePath === this.focusExpectedPath) {
+        this.focusExpectedPath = null;
+        return;
+      }
+      // 过渡中尚未拿到有效文件：跳过，等待正确的 leaf-change
+      if (activePath === null) return;
+      // 用户主动切换到其他文件：解除钉住、继续刷新
       this.focusExpectedPath = null;
     }
     this.refresh();
