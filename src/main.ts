@@ -531,44 +531,66 @@ class ZkShowView extends ItemView {
     if (ev.key === "ArrowLeft" || ev.key === "ArrowRight" || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "Home" || ev.key === "End") {
       const cards = this.currentLayout?.cards;
       if (!cards || cards.length === 0) return;
-      const current = cards.find((c) => c.isCurrent);
-      if (!current) return;
-
       ev.preventDefault();
 
+      // 以当前视口中心最近的卡片作为导航锚点，每次按键从锚点出发向对应方向
+      const anchor = this.navigationAnchor(cards);
+      if (!anchor) return;
+
       if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
-        const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
+        // 同行（y 相近）中，锚点向左/右的下一个卡片
+        const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
         row.sort((a, b) => a.x - b.x);
-        const idx = row.indexOf(current);
-        const target = ev.key === "ArrowLeft" ? row[idx - 1] : row[idx + 1];
-        if (target) {
-          this.panX = Math.round(this.rootEl.clientWidth / 2 - (target.x + target.w / 2) * this.scale);
-          this.panY = Math.round(this.rootEl.clientHeight / 2 - (target.y + target.h / 2) * this.scale);
-          this.applyViewport();
-        }
+        const target = ev.key === "ArrowLeft"
+          ? [...row].reverse().find((c) => c.x + c.w / 2 < anchor.x + anchor.w / 2 - 1)
+          : row.find((c) => c.x + c.w / 2 > anchor.x + anchor.w / 2 + 1);
+        if (target) this.centerCard(target);
       } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
-        const col = cards.filter((c) => Math.abs(c.x - current.x) < 10);
+        // 同列（x 相近）中，锚点向上/下的下一个卡片
+        const col = cards.filter((c) => Math.abs(c.x - anchor.x) < 10);
         col.sort((a, b) => a.y - b.y);
-        const idx = col.indexOf(current);
-        const target = ev.key === "ArrowUp" ? col[idx - 1] : col[idx + 1];
-        if (target) {
-          this.panX = Math.round(this.rootEl.clientWidth / 2 - (target.x + target.w / 2) * this.scale);
-          this.panY = Math.round(this.rootEl.clientHeight / 2 - (target.y + target.h / 2) * this.scale);
-          this.applyViewport();
-        }
+        const target = ev.key === "ArrowUp"
+          ? [...col].reverse().find((c) => c.y + c.h / 2 < anchor.y + anchor.h / 2 - 1)
+          : col.find((c) => c.y + c.h / 2 > anchor.y + anchor.h / 2 + 1);
+        if (target) this.centerCard(target);
       } else if (ev.key === "Home") {
-        const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
+        const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
         row.sort((a, b) => a.x - b.x);
         const target = row[0];
-        if (target) this.navigateToCode(target.code, target.path);
+        if (target) this.centerCard(target);
       } else if (ev.key === "End") {
-        const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
+        const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
         row.sort((a, b) => a.x - b.x);
         const target = row[row.length - 1];
-        if (target) this.navigateToCode(target.code, target.path);
+        if (target) this.centerCard(target);
       }
     }
   };
+
+  /** 找到当前视口中心最近的卡片，作为键盘导航锚点。 */
+  private navigationAnchor(cards: Layout["cards"]): Layout["cards"][number] | null {
+    const centerX = (this.rootEl.clientWidth / 2 - this.panX) / this.scale;
+    const centerY = (this.rootEl.clientHeight / 2 - this.panY) / this.scale;
+    let best: Layout["cards"][number] | null = null;
+    let bestDist = Infinity;
+    for (const card of cards) {
+      const cx = card.x + card.w / 2;
+      const cy = card.y + card.h / 2;
+      const dist = (cx - centerX) ** 2 + (cy - centerY) ** 2;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = card;
+      }
+    }
+    return best;
+  }
+
+  /** 将指定卡片平移到视口中心，但不改变聚焦。 */
+  private centerCard(card: Layout["cards"][number]): void {
+    this.panX = Math.round(this.rootEl.clientWidth / 2 - (card.x + card.w / 2) * this.scale);
+    this.panY = Math.round(this.rootEl.clientHeight / 2 - (card.y + card.h / 2) * this.scale);
+    this.applyViewport();
+  }
 
   private closeHintPopover(): void {
     this.openHintId = closeHint(this.openHintId);
