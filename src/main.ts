@@ -172,7 +172,7 @@ class ZkShowView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    this.rootEl = this.contentEl.createDiv({ cls: "zk-show-root" });
+    this.rootEl = this.contentEl.createDiv({ cls: "zk-show-root", attr: { tabindex: "0" } });
     this.rootEl.addEventListener("pointerdown", this.onPointerDown);
     this.rootEl.addEventListener("pointermove", this.onPointerMove);
     this.rootEl.addEventListener("pointerup", this.onPointerEnd);
@@ -187,6 +187,7 @@ class ZkShowView extends ItemView {
       if (this.allowResizeCenter && this.activePointers.size === 0) this.centerCanvas();
     });
     this.resizeObserver.observe(this.rootEl);
+    this.rootEl.focus();
     this.refresh();
   }
 
@@ -525,44 +526,45 @@ class ZkShowView extends ItemView {
       return;
     }
 
-    if (!ev.ctrlKey) return;
-    const cards = this.currentLayout?.cards;
-    if (!cards || cards.length === 0) return;
-    const current = cards.find((c) => c.isCurrent);
-    if (!current) return;
+    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight" || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "Home" || ev.key === "End") {
+      const cards = this.currentLayout?.cards;
+      if (!cards || cards.length === 0) return;
+      const current = cards.find((c) => c.isCurrent);
+      if (!current) return;
 
-    ev.preventDefault();
+      ev.preventDefault();
 
-    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
-      const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
-      row.sort((a, b) => a.x - b.x);
-      const idx = row.indexOf(current);
-      const target = ev.key === "ArrowLeft" ? row[idx - 1] : row[idx + 1];
-      if (target) {
-        this.panX = Math.round(this.rootEl.clientWidth / 2 - (target.x + target.w / 2) * this.scale);
-        this.panY = Math.round(this.rootEl.clientHeight / 2 - (target.y + target.h / 2) * this.scale);
-        this.applyViewport();
+      if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+        const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
+        row.sort((a, b) => a.x - b.x);
+        const idx = row.indexOf(current);
+        const target = ev.key === "ArrowLeft" ? row[idx - 1] : row[idx + 1];
+        if (target) {
+          this.panX = Math.round(this.rootEl.clientWidth / 2 - (target.x + target.w / 2) * this.scale);
+          this.panY = Math.round(this.rootEl.clientHeight / 2 - (target.y + target.h / 2) * this.scale);
+          this.applyViewport();
+        }
+      } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
+        const col = cards.filter((c) => Math.abs(c.x - current.x) < 10);
+        col.sort((a, b) => a.y - b.y);
+        const idx = col.indexOf(current);
+        const target = ev.key === "ArrowUp" ? col[idx - 1] : col[idx + 1];
+        if (target) {
+          this.panX = Math.round(this.rootEl.clientWidth / 2 - (target.x + target.w / 2) * this.scale);
+          this.panY = Math.round(this.rootEl.clientHeight / 2 - (target.y + target.h / 2) * this.scale);
+          this.applyViewport();
+        }
+      } else if (ev.key === "Home") {
+        const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
+        row.sort((a, b) => a.x - b.x);
+        const target = row[0];
+        if (target) this.navigateToCode(target.code, target.path);
+      } else if (ev.key === "End") {
+        const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
+        row.sort((a, b) => a.x - b.x);
+        const target = row[row.length - 1];
+        if (target) this.navigateToCode(target.code, target.path);
       }
-    } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
-      const col = cards.filter((c) => Math.abs(c.x - current.x) < 10);
-      col.sort((a, b) => a.y - b.y);
-      const idx = col.indexOf(current);
-      const target = ev.key === "ArrowUp" ? col[idx - 1] : col[idx + 1];
-      if (target) {
-        this.panX = Math.round(this.rootEl.clientWidth / 2 - (target.x + target.w / 2) * this.scale);
-        this.panY = Math.round(this.rootEl.clientHeight / 2 - (target.y + target.h / 2) * this.scale);
-        this.applyViewport();
-      }
-    } else if (ev.key === "Home") {
-      const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
-      row.sort((a, b) => a.x - b.x);
-      const target = row[0];
-      if (target) this.navigateToCode(target.code, target.path);
-    } else if (ev.key === "End") {
-      const row = cards.filter((c) => Math.abs(c.y - current.y) < 10);
-      row.sort((a, b) => a.x - b.x);
-      const target = row[row.length - 1];
-      if (target) this.navigateToCode(target.code, target.path);
     }
   };
 
