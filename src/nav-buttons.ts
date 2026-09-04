@@ -14,8 +14,8 @@ export class NavButtons {
     down: "▼",
     left: "◀",
     right: "▶",
-    home: "⏮",
-    end: "⏭",
+    home: "H",
+    end: "E",
   };
 
   private static readonly ORDER: NavDirection[] = ["up", "down", "left", "right", "home", "end"];
