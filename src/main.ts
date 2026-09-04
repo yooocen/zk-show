@@ -588,33 +588,29 @@ class ZkShowView extends ItemView {
     this.applyViewport();
   }
 
-  /** 沿折线（poly）和虚折线（dashed poly）方向找到锚点上方/下方连接的卡片。 */
+  /** 沿连接线（poly/虚线等）方向找到锚点上方/下方连接的卡片。 */
   private polyConnected(anchor: Layout["cards"][number], dir: "above" | "below"): Layout["cards"][number] | null {
     const cards = this.currentLayout?.cards ?? [];
     const edges = this.currentLayout?.edges ?? [];
+    const codeById = new Map(cards.map((c) => [c.code, c]));
+    // 用边的 sourceId/targetId 构建邻接，连接锚点所在的折线/连线
+    const connected = new Set<string>();
+    for (const edge of edges) {
+      if (!edge.sourceId || !edge.targetId) continue;
+      if (edge.sourceId === anchor.code) connected.add(edge.targetId);
+      if (edge.targetId === anchor.code) connected.add(edge.sourceId);
+    }
     const anchorY = anchor.y + anchor.h / 2;
     let best: Layout["cards"][number] | null = null;
     let bestDist = Infinity;
-    for (const edge of edges) {
-      if (edge.kind !== "poly") continue;
-      if (edge.sourceId !== anchor.code) continue;
-      const points = edge.points;
-      const end = points ? points[points.length - 1] : { x: edge.x2, y: edge.y2 };
-      let nearest: Layout["cards"][number] | null = null;
-      let nearDist = Infinity;
-      for (const card of cards) {
-        if (card.code === anchor.code) continue;
-        const cx = card.x + card.w / 2;
-        const cy = card.y + card.h / 2;
-        const d = (cx - end.x) ** 2 + (cy - end.y) ** 2;
-        if (d < nearDist) { nearDist = d; nearest = card; }
-      }
-      if (!nearest) continue;
-      const targetY = nearest.y + nearest.h / 2;
+    for (const code of connected) {
+      const card = codeById.get(code);
+      if (!card) continue;
+      const targetY = card.y + card.h / 2;
       const inDir = dir === "above" ? targetY < anchorY : targetY > anchorY;
       if (!inDir) continue;
       const dist = Math.abs(targetY - anchorY);
-      if (dist < bestDist) { bestDist = dist; best = nearest; }
+      if (dist < bestDist) { bestDist = dist; best = card; }
     }
     return best;
   }
