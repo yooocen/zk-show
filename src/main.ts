@@ -546,12 +546,8 @@ class ZkShowView extends ItemView {
           : row.find((c) => c.x + c.w / 2 > anchor.x + anchor.w / 2 + 1);
         if (target) this.centerCard(target);
       } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
-        // 同列（x 相近）中，锚点向上/下的下一个卡片
-        const col = cards.filter((c) => Math.abs(c.x - anchor.x) < 10);
-        col.sort((a, b) => a.y - b.y);
-        const target = ev.key === "ArrowUp"
-          ? [...col].reverse().find((c) => c.y + c.h / 2 < anchor.y + anchor.h / 2 - 1)
-          : col.find((c) => c.y + c.h / 2 > anchor.y + anchor.h / 2 + 1);
+        // 通过折线（poly）和虚折线（dashed poly）找上下连接的卡片
+        const target = this.polyConnected(anchor, ev.key === "ArrowUp" ? "above" : "below");
         if (target) this.centerCard(target);
       } else if (ev.key === "Home") {
         const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
@@ -590,6 +586,37 @@ class ZkShowView extends ItemView {
     this.panX = Math.round(this.rootEl.clientWidth / 2 - (card.x + card.w / 2) * this.scale);
     this.panY = Math.round(this.rootEl.clientHeight / 2 - (card.y + card.h / 2) * this.scale);
     this.applyViewport();
+  }
+
+  /** 沿折线（poly）和虚折线（dashed poly）方向找到锚点上方/下方连接的卡片。 */
+  private polyConnected(anchor: Layout["cards"][number], dir: "above" | "below"): Layout["cards"][number] | null {
+    const cards = this.currentLayout?.cards ?? [];
+    const edges = this.currentLayout?.edges ?? [];
+    const anchorY = anchor.y + anchor.h / 2;
+    let best: Layout["cards"][number] | null = null;
+    let bestDist = Infinity;
+    for (const edge of edges) {
+      if (edge.kind !== "poly") continue;
+      if (edge.sourceId !== anchor.code) continue;
+      const points = edge.points;
+      const end = points ? points[points.length - 1] : { x: edge.x2, y: edge.y2 };
+      let nearest: Layout["cards"][number] | null = null;
+      let nearDist = Infinity;
+      for (const card of cards) {
+        if (card.code === anchor.code) continue;
+        const cx = card.x + card.w / 2;
+        const cy = card.y + card.h / 2;
+        const d = (cx - end.x) ** 2 + (cy - end.y) ** 2;
+        if (d < nearDist) { nearDist = d; nearest = card; }
+      }
+      if (!nearest) continue;
+      const targetY = nearest.y + nearest.h / 2;
+      const inDir = dir === "above" ? targetY < anchorY : targetY > anchorY;
+      if (!inDir) continue;
+      const dist = Math.abs(targetY - anchorY);
+      if (dist < bestDist) { bestDist = dist; best = nearest; }
+    }
+    return best;
   }
 
   private closeHintPopover(): void {
