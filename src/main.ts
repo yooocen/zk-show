@@ -298,6 +298,8 @@ class ZkShowView extends ItemView {
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     ev.preventDefault();
+    // 确保点击后 rootEl 获得焦点，裸键方向键/Home/End 才能工作
+    this.rootEl.focus();
     try {
       this.rootEl.setPointerCapture(ev.pointerId);
     } catch {
