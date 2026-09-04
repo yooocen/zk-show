@@ -346,6 +346,13 @@
   box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
 }
 
+.zk-show-card.is-pre-selected {
+  border-color: var(--text-accent-hover);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
+  outline: 2px solid var(--text-accent);
+  outline-offset: -2px;
+}
+
 .zk-show-card.is-current {
   border-color: var(--interactive-accent);
   background: var(--interactive-accent);

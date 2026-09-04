@@ -103,6 +103,7 @@ class ZkShowView extends ItemView {
   private panX = 0;
   private panY = 0;
   private scale = 1;
+  private preSelectedCode: string | null = null;
   private dragActive = false;
   private dragMoved = false;
   private pointerDownTarget: Element | null = null;
@@ -295,6 +296,8 @@ class ZkShowView extends ItemView {
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
     if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
+    // 点击画布时清除预选中状态
+    this.clearPreSelected();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
     this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
     ev.preventDefault();
@@ -528,6 +531,14 @@ class ZkShowView extends ItemView {
       return;
     }
 
+    // 回车聚焦预选中卡片
+    if (ev.key === "Enter" && this.preSelectedCode) {
+      ev.preventDefault();
+      const card = this.currentLayout?.cards.find((c) => c.code === this.preSelectedCode);
+      if (card) this.navigateToCode(card.code, card.path);
+      return;
+    }
+
     if (ev.key === "ArrowLeft" || ev.key === "ArrowRight" || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "Home" || ev.key === "End") {
       const cards = this.currentLayout?.cards;
       if (!cards || cards.length === 0) return;
@@ -586,6 +597,24 @@ class ZkShowView extends ItemView {
     this.panX = Math.round(this.rootEl.clientWidth / 2 - (card.x + card.w / 2) * this.scale);
     this.panY = Math.round(this.rootEl.clientHeight / 2 - (card.y + card.h / 2) * this.scale);
     this.applyViewport();
+    this.setPreSelected(card.code);
+  }
+
+  /** 设置预选中卡片（高亮 + 可回车聚焦）。 */
+  private setPreSelected(code: string): void {
+    this.clearPreSelected();
+    const el = this.canvasEl?.querySelector(`.zk-show-card[data-code="${code}"]`);
+    if (el) el.classList.add("is-pre-selected");
+    this.preSelectedCode = code;
+  }
+
+  /** 清除预选中状态。 */
+  private clearPreSelected(): void {
+    if (this.preSelectedCode) {
+      const el = this.canvasEl?.querySelector(`.zk-show-card[data-code="${this.preSelectedCode}"]`);
+      el?.classList.remove("is-pre-selected");
+      this.preSelectedCode = null;
+    }
   }
 
   /** 沿连接线（poly/虚线等）方向找到锚点上方/下方连接的卡片。 */
@@ -889,6 +918,7 @@ class ZkShowView extends ItemView {
     // 只移除旧画布与旧空提示，保留 TopicSwitch 等固定 UI 子元素
     if (this.canvasEl) this.canvasEl.remove();
     root.querySelectorAll(".zk-show-empty").forEach((el) => el.remove());
+    this.clearPreSelected();
 
     // TopicSwitch 在视图生命周期内仅创建一次，避免重复重建导致面板状态丢失
     if (!this.topicSwitch) {
