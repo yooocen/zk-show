@@ -10,6 +10,7 @@ import { ZkNoFormModal } from "./zkno-form-modal";
 import { indexFingerprint } from "./index-fingerprint";
 import { collectRootTopics } from "./topic-graph";
 import { TopicSwitch } from "./topic-switch";
+import { NavButtons, type NavDirection } from "./nav-buttons";
 
 export const VIEW_TYPE_ZK_SHOW = "zk-show-view";
 
@@ -100,6 +101,7 @@ class ZkShowView extends ItemView {
   private rootEl!: HTMLElement;
   private canvasEl!: HTMLElement;
   private topicSwitch: TopicSwitch | null = null;
+  private navButtons: NavButtons | null = null;
   private panX = 0;
   private panY = 0;
   private scale = 1;
@@ -205,6 +207,8 @@ class ZkShowView extends ItemView {
     this.closeLinkPopover();
     this.topicSwitch?.destroy();
     this.topicSwitch = null;
+    this.navButtons?.destroy();
+    this.navButtons = null;
     this.hoverPopover = null;
     this.linkPreviewTarget = null;
     this.linkPreviewPath = null;
@@ -295,7 +299,7 @@ class ZkShowView extends ItemView {
 
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-nav-buttons")) return;
     // 点击画布时清除预选中状态
     this.clearPreSelected();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -321,7 +325,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerMove = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-nav-buttons")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     ev.preventDefault();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -363,7 +367,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerEnd = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-nav-buttons")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     const wasSinglePointer = this.activePointers.size === 1;
     // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
@@ -543,34 +547,8 @@ class ZkShowView extends ItemView {
       const cards = this.currentLayout?.cards;
       if (!cards || cards.length === 0) return;
       ev.preventDefault();
-
-      // 以当前视口中心最近的卡片作为导航锚点，每次按键从锚点出发向对应方向
-      const anchor = this.navigationAnchor(cards);
-      if (!anchor) return;
-
-      if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
-        // 同行（y 相近）中，锚点向左/右的下一个卡片
-        const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
-        row.sort((a, b) => a.x - b.x);
-        const target = ev.key === "ArrowLeft"
-          ? [...row].reverse().find((c) => c.x + c.w / 2 < anchor.x + anchor.w / 2 - 1)
-          : row.find((c) => c.x + c.w / 2 > anchor.x + anchor.w / 2 + 1);
-        if (target) this.centerCard(target);
-      } else if (ev.key === "ArrowUp" || ev.key === "ArrowDown") {
-        // 通过折线（poly）和虚折线（dashed poly）找上下连接的卡片
-        const target = this.polyConnected(anchor, ev.key === "ArrowUp" ? "above" : "below");
-        if (target) this.centerCard(target);
-      } else if (ev.key === "Home") {
-        const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
-        row.sort((a, b) => a.x - b.x);
-        const target = row[0];
-        if (target) this.centerCard(target);
-      } else if (ev.key === "End") {
-        const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
-        row.sort((a, b) => a.x - b.x);
-        const target = row[row.length - 1];
-        if (target) this.centerCard(target);
-      }
+      const dir = ev.key === "ArrowLeft" ? "left" : ev.key === "ArrowRight" ? "right" : ev.key === "ArrowUp" ? "up" : ev.key === "ArrowDown" ? "down" : ev.key === "Home" ? "home" : "end";
+      this.navigateByDirection(dir as NavDirection);
     }
   };
 
@@ -615,6 +593,59 @@ class ZkShowView extends ItemView {
       el?.classList.remove("is-pre-selected");
       this.preSelectedCode = null;
     }
+  }
+
+  /** 按方向导航（上下左右/Home/End），与键盘和按钮共用。 */
+  private navigateByDirection(dir: NavDirection): void {
+    const cards = this.currentLayout?.cards;
+    if (!cards || cards.length === 0) return;
+    const anchor = this.navigationAnchor(cards);
+    if (!anchor) return;
+
+    if (dir === "left" || dir === "right") {
+      const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
+      row.sort((a, b) => a.x - b.x);
+      const target = dir === "left"
+        ? [...row].reverse().find((c) => c.x + c.w / 2 < anchor.x + anchor.w / 2 - 1)
+        : row.find((c) => c.x + c.w / 2 > anchor.x + anchor.w / 2 + 1);
+      if (target) this.centerCard(target);
+    } else if (dir === "up" || dir === "down") {
+      const target = this.polyConnected(anchor, dir === "up" ? "above" : "below");
+      if (target) this.centerCard(target);
+    } else if (dir === "home") {
+      const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
+      row.sort((a, b) => a.x - b.x);
+      const target = row[0];
+      if (target) this.centerCard(target);
+    } else if (dir === "end") {
+      const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
+      row.sort((a, b) => a.x - b.x);
+      const target = row[row.length - 1];
+      if (target) this.centerCard(target);
+    }
+    this.updateNavButtons();
+  }
+
+  /** 根据当前锚点更新导航按钮的置灰状态。 */
+  private updateNavButtons(): void {
+    const disabled = new Set<NavDirection>();
+    const cards = this.currentLayout?.cards;
+    if (!cards || cards.length === 0) { this.navButtons?.setDisabled(new Set(["up", "down", "left", "right", "home", "end"])); return; }
+    const anchor = this.navigationAnchor(cards);
+    if (!anchor) { this.navButtons?.setDisabled(new Set(["up", "down", "left", "right", "home", "end"])); return; }
+
+    const row = cards.filter((c) => Math.abs(c.y - anchor.y) < 10);
+    row.sort((a, b) => a.x - b.x);
+    const anchorCenterX = anchor.x + anchor.w / 2;
+
+    if (!row.find((c) => { const cx = c.x + c.w / 2; return cx < anchorCenterX - 1; })) disabled.add("left");
+    if (!row.find((c) => { const cx = c.x + c.w / 2; return cx > anchorCenterX + 1; })) disabled.add("right");
+    if (!this.polyConnected(anchor, "above")) disabled.add("up");
+    if (!this.polyConnected(anchor, "below")) disabled.add("down");
+    if (!row[0] || row[0].code === anchor.code) disabled.add("home");
+    if (!row[row.length - 1] || row[row.length - 1].code === anchor.code) disabled.add("end");
+
+    this.navButtons?.setDisabled(disabled);
   }
 
   /** 沿连接线（poly/虚线等）方向找到锚点上方/下方连接的卡片。 */
@@ -937,6 +968,13 @@ class ZkShowView extends ItemView {
       }))
     );
 
+    // 右下角导航按钮组，仅创建一次
+    if (!this.navButtons) {
+      this.navButtons = new NavButtons();
+      this.navButtons.onChange((dir) => this.navigateByDirection(dir));
+      root.appendChild(this.navButtons.el);
+    }
+
     // 画布层：随拖动平移（像 zettelkasten-forest 一样自由拖拽）
     const hasActivePointer = this.activePointers.size > 0;
     const now = Date.now();
@@ -965,12 +1003,14 @@ class ZkShowView extends ItemView {
       code !== null && !this.plugin.index.node(code)?.isGhost ? code : null
     );
     if (code === null) {
+      this.updateNavButtons();
       return;
     }
 
     const vr = computeView(this.plugin.index, code);
     if (!vr) {
       this.empty(`未在索引中找到编码 ${code}（可能索引尚未加载），请稍候或切换一下笔记。`);
+      this.updateNavButtons();
       return;
     }
 
@@ -988,6 +1028,7 @@ class ZkShowView extends ItemView {
       this.allowResizeCenter = true;
       this.centerCanvas();
     }
+    this.updateNavButtons();
   }
 
   private resolveActiveCode(active: TFile | null): string | null {
