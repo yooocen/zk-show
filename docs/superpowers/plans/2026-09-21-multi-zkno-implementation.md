@@ -609,6 +609,35 @@ git commit -m "feat: 持久化记住每个 md 上次聚焦的 zkNo 话题"
 **Files:**
 - Modify: `src/main.ts`（`ZkShowView`）
 
+- [ ] **Step 0: 持久化加固（Task 6 遗留质量项）**
+
+在 `ZkShowPlugin` 类内 `private data: ZkShowData = {};` 下方追加：
+
+```ts
+  private dataReady: Promise<void> = Promise.resolve();
+```
+
+把 `onload()` 里的 loadData 块改为合并式并记录 dataReady：
+
+```ts
+    this.dataReady = this.loadData().then((data) => {
+      this.data = Object.assign({}, (data as ZkShowData) ?? {}, this.data);
+      this.view?.refresh();
+    });
+```
+
+把 `rememberTopic` 改为 async、等待 dataReady、值未变短路（避免覆盖竞态与无谓写盘）：
+
+```ts
+  async rememberTopic(path: string, code: string): Promise<void> {
+    await this.dataReady;
+    if (this.data.lastTopicByPath?.[path] === code) return;
+    if (!this.data.lastTopicByPath) this.data.lastTopicByPath = {};
+    this.data.lastTopicByPath[path] = code;
+    void this.saveData(this.data);
+  }
+```
+
 - [ ] **Step 1: 更新导入与字段**
 
 `src/main.ts` 顶部新增导入：
