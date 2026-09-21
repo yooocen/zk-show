@@ -918,3 +918,12 @@
   outline: none;
   box-shadow: 0 0 0 2px var(--background-modifier-accent);
 }
+
+/* ===== 右上角笔记话题切换（多 zkNo 笔记） ===== */
+.zk-show-zkno-switch {
+  position: absolute;
+  top: 42px;
+  right: 8px;
+  z-index: 40;
+  font-family: var(--font-interface);
+}
