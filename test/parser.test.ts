@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseZettelkastenNo, normalizeZettelkastenNo } from "../src/parser";
+import { parseZettelkastenNo, normalizeZettelkastenNo, parseZettelkastenNoList } from "../src/parser";
 
 describe("parseZettelkastenNo", () => {
   it("仅根", () => {
@@ -71,5 +71,36 @@ describe("parseZettelkastenNo", () => {
     expect(normalizeZettelkastenNo("1/4a1")).toBe("1/4a1");
     expect(normalizeZettelkastenNo(3)).toBe("3");
     expect(normalizeZettelkastenNo("")).toBeNull();
+  });
+});
+
+describe("parseZettelkastenNoList", () => {
+  it("逗号/空格/分号/混合分隔", () => {
+    expect(parseZettelkastenNoList("1/4a, 2/3b")).toEqual(["1/4a", "2/3b"]);
+    expect(parseZettelkastenNoList("1/4a;2/3b; 5")).toEqual(["1/4a", "2/3b", "5"]);
+    expect(parseZettelkastenNoList("1/4a  2/3b 5/a")).toEqual(["1/4a", "2/3b", "5/a"]);
+    expect(parseZettelkastenNoList("1/4a,; 2/3b")).toEqual(["1/4a", "2/3b"]);
+  });
+
+  it("YAML 数组输入，元素可为字符串或数字", () => {
+    expect(parseZettelkastenNoList(["1/4a", "2/3b"])).toEqual(["1/4a", "2/3b"]);
+    expect(parseZettelkastenNoList([1, "2/a"])).toEqual(["1", "2/a"]);
+  });
+
+  it("数字输入与引号包裹", () => {
+    expect(parseZettelkastenNoList(2)).toEqual(["2"]);
+    expect(parseZettelkastenNoList('"1/4a, 2/3b"')).toEqual(["1/4a", "2/3b"]);
+  });
+
+  it("去重并保持先后顺序", () => {
+    expect(parseZettelkastenNoList("1/4a, 1/4a, 2, 1/4a")).toEqual(["1/4a", "2"]);
+  });
+
+  it("非法段与空输入返回空数组", () => {
+    expect(parseZettelkastenNoList("")).toEqual([]);
+    expect(parseZettelkastenNoList("   , ; ")).toEqual([]);
+    expect(parseZettelkastenNoList(undefined)).toEqual([]);
+    expect(parseZettelkastenNoList(null)).toEqual([]);
+    expect(parseZettelkastenNoList(["", "1/"])).toEqual([]);
   });
 });

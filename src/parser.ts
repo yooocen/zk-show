@@ -78,3 +78,46 @@ export function parseZettelkastenNo(value: unknown): ParsedZettel | null {
     parent: path.length > 1 ? canonicalOf(path.slice(0, -1)) : null,
   };
 }
+
+/**
+ * 解析 zettelkastenNo 的多个值（逗号 / 空格 / 分号分隔，或 YAML 数组）。
+ * 返回按出现顺序去重后的规范码；无有效编码时返回空数组。
+ */
+export function parseZettelkastenNoList(value: unknown): string[] {
+  const parts = Array.isArray(value) ? value : [value];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    if (typeof part === "number") {
+      const parsed = parseZettelkastenNo(String(part));
+      if (parsed && !seen.has(parsed.canonical)) {
+        seen.add(parsed.canonical);
+        out.push(parsed.canonical);
+      }
+      continue;
+    }
+    if (typeof part !== "string") continue;
+    for (const chunk of splitZettelkastenNoValue(part)) {
+      if (chunk.endsWith("/")) continue;
+      const parsed = parseZettelkastenNo(chunk);
+      if (parsed && !seen.has(parsed.canonical)) {
+        seen.add(parsed.canonical);
+        out.push(parsed.canonical);
+      }
+    }
+  }
+  return out;
+}
+
+/** 去掉外层引号后按分隔符切分多编码字符串。 */
+function splitZettelkastenNoValue(s: string): string[] {
+  let t = s.trim();
+  if (t.length >= 2) {
+    const first = t[0];
+    const last = t[t.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      t = t.slice(1, -1).trim();
+    }
+  }
+  return t === "" ? [] : t.split(/[,\s;]+/).filter((x) => x !== "");
+}
