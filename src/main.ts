@@ -99,10 +99,10 @@ export default class ZkShowPlugin extends Plugin {
   }
 
   async rememberTopic(path: string, code: string): Promise<void> {
-    await this.dataReady;
     if (this.data.lastTopicByPath?.[path] === code) return;
     if (!this.data.lastTopicByPath) this.data.lastTopicByPath = {};
     this.data.lastTopicByPath[path] = code;
+    await this.dataReady;
     void this.saveData(this.data);
   }
 
