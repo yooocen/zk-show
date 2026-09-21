@@ -58,10 +58,12 @@ export default class ZkShowPlugin extends Plugin {
     this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRebuild()));
     this.registerEvent(this.app.metadataCache.on("resolved", () => this.scheduleRebuild()));
 
-    this.dataReady = this.loadData().then((data) => {
-      this.data = Object.assign({}, (data as ZkShowData) ?? {}, this.data);
-      this.view?.refresh();
-    });
+    this.dataReady = this.loadData()
+      .then((data) => {
+        this.data = Object.assign({}, (data as ZkShowData) ?? {}, this.data);
+        this.view?.refresh();
+      })
+      .catch(() => {});
   }
 
   onunload(): void {
@@ -331,7 +333,7 @@ class ZkShowView extends ItemView {
 
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
-    if (ev.target instanceof Element &&       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
     // 点击画布时清除预选中状态
     this.clearPreSelected();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -357,7 +359,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerMove = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element &&       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     ev.preventDefault();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -399,7 +401,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerEnd = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element &&       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
+    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     const wasSinglePointer = this.activePointers.size === 1;
     // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
@@ -498,7 +500,7 @@ class ZkShowView extends ItemView {
     // 接管的文件，在过渡期内 getActiveFile 仍可能返回旧文件，从而把刚切换
     // 的焦点覆盖回旧卡。钉住期内 refresh 一律用此 code；直到 getActiveFile
     // 真正返回目标文件（说明 openFile 已生效）才解除钉住，回退信任活动文件。
-    if (path && this.activeCodes?.includes(code)) this.plugin.rememberTopic(path, code);
+    if (path && this.plugin.index.node(code)?.path === path) this.plugin.rememberTopic(path, code);
     this.focusCode = code;
     this.focusExpectedPath = path ?? null;
     this.focusPinnedUntil = Date.now() + 5000;
