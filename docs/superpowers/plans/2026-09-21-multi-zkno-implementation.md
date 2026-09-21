@@ -745,15 +745,56 @@ import { deriveZkNoSwitchOptions, ZkNoSwitch } from "./zkno-switch";
       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")
 ```
 
-- [ ] **Step 7: 类型检查**
+- [ ] **Step 7: 组件高亮按根匹配（Task 5 遗留质量项）**
+
+修改 `src/zkno-switch.ts` 的 `renderPanel`：高亮判定从 `option.zkNo === this.selectedZkNo` 改为「选项根与当前聚焦码的根一致」——同根多 zkNo 时聚焦非首个码，下拉仍高亮该根。在 `renderPanel` 内顶部加：
+
+```ts
+    const selectedRoot = this.selectedZkNo ? this.selectedZkNo.split("/")[0] : null;
+```
+
+并把高亮行：
+
+```ts
+      if (option.zkNo === this.selectedZkNo) item.classList.add("is-selected");
+```
+
+改为：
+
+```ts
+      if (option.rootCode === selectedRoot) item.classList.add("is-selected");
+```
+
+在 `test/zkno-switch.test.ts` 追加用例：
+
+```ts
+  it("同根多码时按根高亮非首个码", () => {
+    const sw = new ZkNoSwitch();
+    document.body.appendChild(sw.el);
+    sw.render(
+      [
+        { rootCode: "2", rootTitle: "编程", zkNo: "2/3b" },
+        { rootCode: "1", rootTitle: "数学", zkNo: "1/4a" },
+      ],
+      "2/9c"
+    );
+    const selected = sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-item.is-selected");
+    expect(selected?.querySelector(".zk-show-topic-switch-code")?.textContent).toBe("2");
+    sw.destroy();
+  });
+```
+
+运行：`npx vitest run test/zkno-switch.test.ts`，Expected: 7 个用例全 PASS。
+
+- [ ] **Step 8: 类型检查**
 
 Run: `npx tsc --noEmit`
 Expected: 无报错
 
-- [ ] **Step 8: 提交**
+- [ ] **Step 9: 提交**
 
 ```bash
-git add src/main.ts
+git add src/main.ts src/zkno-switch.ts test/zkno-switch.test.ts
 git commit -m "feat: 视图接入笔记话题下拉并支持多 zkNo 聚焦记忆"
 ```
 
