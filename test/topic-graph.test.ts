@@ -71,6 +71,16 @@ describe("TopicGraph", () => {
     expect(graph.node("1/1")).toMatchObject({ path: "first.md", title: "第一张" });
   });
 
+  it("同一文件多 zkNo 生成共用路径的多个节点", () => {
+    const graph = new TopicGraph([
+      { path: "a.md", basename: "多主题", no: "1/4a" },
+      { path: "a.md", basename: "多主题", no: "2/3b" },
+    ]);
+
+    expect(graph.node("1/4a")).toMatchObject({ path: "a.md", isGhost: false, title: "多主题" });
+    expect(graph.node("2/3b")).toMatchObject({ path: "a.md", isGhost: false, title: "多主题" });
+  });
+
   it("collectRootTopics 返回全部根话题及标题/幽灵标记", () => {
     const graph = new TopicGraph([
       { path: "root1.md", basename: "数学", no: "1" },
