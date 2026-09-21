@@ -100,6 +100,8 @@ export function parseZettelkastenNoList(value: unknown): string[] {
     }
     if (typeof part !== "string") continue;
     for (const chunk of splitZettelkastenNoValue(part)) {
+      // 悬空斜杠（如 "1/"）视为非法段跳过，与测试契约一致
+      if (chunk.endsWith("/")) continue;
       const parsed = parseZettelkastenNo(chunk);
       if (parsed && !seen.has(parsed.canonical)) {
         seen.add(parsed.canonical);
@@ -123,6 +125,8 @@ function splitZettelkastenNoValue(s: string): string[] {
   return t === "" ? [] : t.split(/[,\s;]+/).filter((x) => x !== "");
 }
 ```
+
+> 说明：`chunk.endsWith("/")` 为满足本任务测试契约（`["", "1/"]` → `[]`）而加入，不改变 `parseZettelkastenNo` 单值行为。
 
 - [ ] **Step 4: 运行确认通过**
 
