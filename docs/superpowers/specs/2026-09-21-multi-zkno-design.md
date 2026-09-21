@@ -37,10 +37,7 @@ export function parseZettelkastenNoList(value: unknown): string[]
 
 - `resolveActiveCode` 改为 `resolveActiveCodes(active): string[] | null`，返回当前文件的有序有效编码列表。
 - 默认聚焦 `codes[0]`（按先后顺序）。
-- 当前聚焦码由三层决定：
-  1. 持久记忆：`plugin.data.lastTopicByPath[activePath]` 若属于 `codes` → 用它；
-  2. 否则内存 override（见下）；
-  3. 否则 `codes[0]`。
+- 当前聚焦码决定：`plugin.data.lastTopicByPath[activePath]` 若属于 `codes` → 沿用（持久记忆即内存值，天然跨刷新生效）；否则 `codes[0]`。
 - 点击卡片 / 键盘导航等走原 `navigateToCode` 路径，若目标卡路径即当前文件且属于 `codes`，同步更新记忆。
 
 ### 新增下拉组件（`src/zkno-switch.ts`，类 `ZkNoSwitch`）
