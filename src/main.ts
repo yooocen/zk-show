@@ -2,7 +2,7 @@ import { FileView, ItemView, Plugin, TFile, WorkspaceLeaf, type HoverPopover } f
 import { computeView, ThreadIndex, type ZRecord } from "./model";
 import { layoutView, renderLayout, type Layout } from "./renderer";
 import { closeHint, hintDescription, popoverPosition, toggleHint } from "./hidden-hint-popover";
-import { normalizeZettelkastenNo } from "./parser";
+import { normalizeZettelkastenNo, parseZettelkastenNoList } from "./parser";
 import { pinchScale, zoomViewportAt, type ViewportPoint, type ViewportState } from "./viewport";
 import { linkIndicatorState, scanInlineLinks, type InlineLink } from "./inline-links";
 import { shouldPreviewLinkOnPointer } from "./hover-link";
@@ -83,12 +83,13 @@ export default class ZkShowPlugin extends Plugin {
     const records: ZRecord[] = [];
     for (const f of this.app.vault.getMarkdownFiles()) {
       const cache = this.app.metadataCache.getFileCache(f);
-      const no = cache?.frontmatter?.zettelkastenNo;
-      if (no !== undefined && no !== null) {
-        const links = scanInlineLinks([...(cache?.links ?? []), ...(cache?.embeds ?? [])], f.path, (link, sourcePath) => {
+      const codes = parseZettelkastenNoList(cache?.frontmatter?.zettelkastenNo);
+      if (codes.length === 0) continue;
+      const links = scanInlineLinks([...(cache?.links ?? []), ...(cache?.embeds ?? [])], f.path, (link, sourcePath) => {
         const target = this.app.metadataCache.getFirstLinkpathDest(link, sourcePath);
         return target ? { path: target.path, title: target.extension === "md" ? target.basename : target.name } : null;
-        });
+      });
+      for (const no of codes) {
         records.push({ path: f.path, basename: f.basename, no, links });
       }
     }
