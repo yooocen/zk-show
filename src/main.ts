@@ -12,10 +12,16 @@ import { collectRootTopics } from "./topic-graph";
 import { TopicSwitch } from "./topic-switch";
 import { NavButtons, type NavDirection } from "./nav-buttons";
 
+interface ZkShowData {
+  /** path → 该 md 上次聚焦的 zkNo 编码。 */
+  lastTopicByPath?: Record<string, string>;
+}
+
 export const VIEW_TYPE_ZK_SHOW = "zk-show-view";
 
 export default class ZkShowPlugin extends Plugin {
   index = new ThreadIndex([]);
+  private data: ZkShowData = {};
   private view: ZkShowView | null = null;
   private rebuildTimer: number | null = null;
   private lastFingerprint = "";
@@ -49,6 +55,11 @@ export default class ZkShowPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => this.view?.onActiveLeafChange(leaf)));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRebuild()));
     this.registerEvent(this.app.metadataCache.on("resolved", () => this.scheduleRebuild()));
+
+    void this.loadData().then((data) => {
+      this.data = Object.assign({}, (data as ZkShowData) ?? {});
+      this.view?.refresh();
+    });
   }
 
   onunload(): void {
@@ -77,6 +88,18 @@ export default class ZkShowPlugin extends Plugin {
       this.index = new ThreadIndex(records);
       this.view?.refresh();
     }, 300);
+  }
+
+  /** 返回该文件应聚焦的编码：持久记忆有效则沿用，否则取第一个。 */
+  lastTopicForPath(path: string, codes: string[]): string {
+    const remembered = this.data.lastTopicByPath?.[path];
+    return remembered && codes.includes(remembered) ? remembered : codes[0];
+  }
+
+  rememberTopic(path: string, code: string): void {
+    if (!this.data.lastTopicByPath) this.data.lastTopicByPath = {};
+    this.data.lastTopicByPath[path] = code;
+    void this.saveData(this.data);
   }
 
   private collectRecords(): ZRecord[] {
