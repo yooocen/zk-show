@@ -2,7 +2,7 @@ import { FileView, ItemView, Plugin, TFile, WorkspaceLeaf, type HoverPopover } f
 import { computeView, ThreadIndex, type ZRecord } from "./model";
 import { layoutView, renderLayout, type Layout } from "./renderer";
 import { closeHint, hintDescription, popoverPosition, toggleHint } from "./hidden-hint-popover";
-import { normalizeZettelkastenNo, parseZettelkastenNoList } from "./parser";
+import { parseZettelkastenNoList } from "./parser";
 import { pinchScale, zoomViewportAt, type ViewportPoint, type ViewportState } from "./viewport";
 import { linkIndicatorState, scanInlineLinks, type InlineLink } from "./inline-links";
 import { shouldPreviewLinkOnPointer } from "./hover-link";
@@ -11,6 +11,7 @@ import { indexFingerprint } from "./index-fingerprint";
 import { collectRootTopics } from "./topic-graph";
 import { TopicSwitch } from "./topic-switch";
 import { NavButtons, type NavDirection } from "./nav-buttons";
+import { deriveZkNoSwitchOptions, ZkNoSwitch } from "./zkno-switch";
 
 interface ZkShowData {
   /** path → 该 md 上次聚焦的 zkNo 编码。 */
@@ -22,6 +23,7 @@ export const VIEW_TYPE_ZK_SHOW = "zk-show-view";
 export default class ZkShowPlugin extends Plugin {
   index = new ThreadIndex([]);
   private data: ZkShowData = {};
+  private dataReady: Promise<void> = Promise.resolve();
   private view: ZkShowView | null = null;
   private rebuildTimer: number | null = null;
   private lastFingerprint = "";
@@ -56,8 +58,8 @@ export default class ZkShowPlugin extends Plugin {
     this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRebuild()));
     this.registerEvent(this.app.metadataCache.on("resolved", () => this.scheduleRebuild()));
 
-    void this.loadData().then((data) => {
-      this.data = Object.assign({}, (data as ZkShowData) ?? {});
+    this.dataReady = this.loadData().then((data) => {
+      this.data = Object.assign({}, (data as ZkShowData) ?? {}, this.data);
       this.view?.refresh();
     });
   }
@@ -96,7 +98,9 @@ export default class ZkShowPlugin extends Plugin {
     return remembered && codes.includes(remembered) ? remembered : codes[0];
   }
 
-  rememberTopic(path: string, code: string): void {
+  async rememberTopic(path: string, code: string): Promise<void> {
+    await this.dataReady;
+    if (this.data.lastTopicByPath?.[path] === code) return;
     if (!this.data.lastTopicByPath) this.data.lastTopicByPath = {};
     this.data.lastTopicByPath[path] = code;
     void this.saveData(this.data);
@@ -126,6 +130,8 @@ class ZkShowView extends ItemView {
   private canvasEl!: HTMLElement;
   private topicSwitch: TopicSwitch | null = null;
   private navButtons: NavButtons | null = null;
+  private zkNoSwitch: ZkNoSwitch | null = null;
+  private activeCodes: string[] | null = null;
   private panX = 0;
   private panY = 0;
   private scale = 1;
@@ -233,6 +239,8 @@ class ZkShowView extends ItemView {
     this.topicSwitch = null;
     this.navButtons?.destroy();
     this.navButtons = null;
+    this.zkNoSwitch?.destroy();
+    this.zkNoSwitch = null;
     this.hoverPopover = null;
     this.linkPreviewTarget = null;
     this.linkPreviewPath = null;
@@ -323,7 +331,7 @@ class ZkShowView extends ItemView {
 
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-nav-buttons")) return;
+    if (ev.target instanceof Element &&       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
     // 点击画布时清除预选中状态
     this.clearPreSelected();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -349,7 +357,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerMove = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-nav-buttons")) return;
+    if (ev.target instanceof Element &&       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     ev.preventDefault();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -391,7 +399,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerEnd = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-nav-buttons")) return;
+    if (ev.target instanceof Element &&       ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     const wasSinglePointer = this.activePointers.size === 1;
     // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
@@ -490,6 +498,7 @@ class ZkShowView extends ItemView {
     // 接管的文件，在过渡期内 getActiveFile 仍可能返回旧文件，从而把刚切换
     // 的焦点覆盖回旧卡。钉住期内 refresh 一律用此 code；直到 getActiveFile
     // 真正返回目标文件（说明 openFile 已生效）才解除钉住，回退信任活动文件。
+    if (path && this.activeCodes?.includes(code)) this.plugin.rememberTopic(path, code);
     this.focusCode = code;
     this.focusExpectedPath = path ?? null;
     this.focusPinnedUntil = Date.now() + 5000;
@@ -499,6 +508,15 @@ class ZkShowView extends ItemView {
         this.app.workspace.getLeaf(false).openFile(file);
       }
     }
+    this.refresh(true);
+    this.centerCanvas();
+  }
+
+  /** 在不切换当前笔记的前提下，把图谱聚焦切换到该笔记的另一个 zkNo。 */
+  private switchFocus(code: string, path: string | null): void {
+    if (path && this.activeCodes?.includes(code)) this.plugin.rememberTopic(path, code);
+    this.focusCode = code;
+    this.focusExpectedPath = null;
     this.refresh(true);
     this.centerCanvas();
   }
@@ -999,6 +1017,16 @@ class ZkShowView extends ItemView {
       root.appendChild(this.navButtons.el);
     }
 
+    // 「笔记话题」下拉：多 zkNo 笔记切换聚焦，仅创建一次
+    if (!this.zkNoSwitch) {
+      this.zkNoSwitch = new ZkNoSwitch();
+      this.zkNoSwitch.onChange((zkNo) => {
+        const active = this.app.workspace.getActiveFile();
+        this.switchFocus(zkNo, active?.path ?? null);
+      });
+      root.appendChild(this.zkNoSwitch.el);
+    }
+
     // 画布层：随拖动平移（像 zettelkasten-forest 一样自由拖拽）
     const hasActivePointer = this.activePointers.size > 0;
     const now = Date.now();
@@ -1018,13 +1046,19 @@ class ZkShowView extends ItemView {
     this.applyViewport();
 
     const active = this.app.workspace.getActiveFile();
-    const code = pinned ? this.focusCode : this.resolveActiveCode(active);
+    const codes = this.resolveActiveCodes(active);
+    const code = pinned ? this.focusCode : codes !== null && active ? this.plugin.lastTopicForPath(active.path, codes) : null;
     if (!pinned) {
       this.focusCode = code;
       this.focusExpectedPath = null;
     }
+    this.activeCodes = codes !== null && codes.length > 1 ? codes : null;
     this.topicSwitch?.setSelected(
       code !== null && !this.plugin.index.node(code)?.isGhost ? code : null
+    );
+    this.zkNoSwitch?.render(
+      this.activeCodes ? deriveZkNoSwitchOptions(this.activeCodes, this.plugin.index) : [],
+      code
     );
     if (code === null) {
       this.updateNavButtons();
@@ -1055,18 +1089,17 @@ class ZkShowView extends ItemView {
     this.updateNavButtons();
   }
 
-  private resolveActiveCode(active: TFile | null): string | null {
+  private resolveActiveCodes(active: TFile | null): string[] | null {
     if (!active) {
       this.empty("打开一篇带 zettelkastenNo 前台的笔记，这里会展示它与其他卡片的关系。");
       return null;
     }
-    const no = this.app.metadataCache.getFileCache(active)?.frontmatter?.zettelkastenNo;
-    const code = normalizeZettelkastenNo(no);
-    if (code === null) {
+    const codes = parseZettelkastenNoList(this.app.metadataCache.getFileCache(active)?.frontmatter?.zettelkastenNo);
+    if (codes.length === 0) {
       this.empty(`当前笔记「${active.basename}」没有有效的 zettelkastenNo 前台编码，无法参与关系展示。`);
       return null;
     }
-    return code;
+    return codes;
   }
 
   private empty(msg: string): void {

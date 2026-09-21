@@ -62,6 +62,21 @@ describe("ZkNoSwitch", () => {
     sw.destroy();
   });
 
+  it("同根多码时按根高亮非首个码", () => {
+    const sw = new ZkNoSwitch();
+    document.body.appendChild(sw.el);
+    sw.render(
+      [
+        { rootCode: "2", rootTitle: "编程", zkNo: "2/3b" },
+        { rootCode: "1", rootTitle: "数学", zkNo: "1/4a" },
+      ],
+      "2/9c"
+    );
+    const selected = sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-item.is-selected");
+    expect(selected?.querySelector(".zk-show-topic-switch-code")?.textContent).toBe("2");
+    sw.destroy();
+  });
+
   it("外部点击收起面板", () => {
     const sw = new ZkNoSwitch();
     document.body.appendChild(sw.el);

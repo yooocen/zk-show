@@ -101,11 +101,12 @@ export class ZkNoSwitch {
 
   private renderPanel(): void {
     this.panel.innerHTML = "";
+    const selectedRoot = this.selectedZkNo ? this.selectedZkNo.split("/")[0] : null;
     for (const option of this.options) {
       const item = document.createElement("div");
       item.className = "zk-show-topic-switch-item";
       item.setAttribute("role", "option");
-      if (option.zkNo === this.selectedZkNo) item.classList.add("is-selected");
+      if (option.rootCode === selectedRoot) item.classList.add("is-selected");
       const code = document.createElement("span");
       code.className = "zk-show-topic-switch-code";
       code.textContent = option.rootCode;
