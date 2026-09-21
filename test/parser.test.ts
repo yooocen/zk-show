@@ -96,6 +96,10 @@ describe("parseZettelkastenNoList", () => {
     expect(parseZettelkastenNoList("1/4a, 1/4a, 2, 1/4a")).toEqual(["1/4a", "2"]);
   });
 
+  it("按规范码等价去重", () => {
+    expect(parseZettelkastenNoList("2/1/1, 2/11")).toEqual(["2/11"]);
+  });
+
   it("非法段与空输入返回空数组", () => {
     expect(parseZettelkastenNoList("")).toEqual([]);
     expect(parseZettelkastenNoList("   , ; ")).toEqual([]);
