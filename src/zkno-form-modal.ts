@@ -197,10 +197,6 @@ export class ZkNoFormModal extends Modal {
       return;
     }
     const candidates = this.computeCandidates(this.selectedParentCode);
-    if (candidates.length === 0) {
-      this.candidateBox.createDiv({ cls: "zk-show-form-empty zk-show-form-warn", text: "无法自动推断下一个编码（可能数字/字母已到上限），请改用手动定义。" });
-      return;
-    }
     for (const code of candidates) this.renderCandidateRadio(code, this.candidateKind(code));
   }
 
@@ -283,7 +279,7 @@ export class ZkNoFormModal extends Modal {
     const parsed = parseZettelkastenNo(input);
     if (!parsed) return { code: null, error: "编码不合法（需如 1/4a 或 2）" };
     const units = parsed.path.slice(1);
-    if (!units.every((u) => /^[0-9a-zA-Z]$/.test(u) || /^\([1-9][0-9]+\)$/.test(u))) {
+    if (!units.every((u) => isDigitUnit(u) || isLetterUnit(u))) {
       return { code: null, error: "编码不合法（后缀单元需为数字、字母或括号多位，如 1/(10)）" };
     }
     const code = parsed.canonical;
