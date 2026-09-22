@@ -174,6 +174,8 @@ git commit -m "feat: 单元工具支持括号多位数（formatUnit/unitNumber/l
     expect(parseZettelkastenNo("1/(10")).toBeNull();
     expect(parseZettelkastenNo("1/(a)")).toBeNull();
     expect(parseZettelkastenNo("1/()")).toBeNull();
+    expect(parseZettelkastenNo("1/(5)")).toBeNull();
+    expect(parseZettelkastenNo("1/(010)")).toBeNull();
   });
 ```
 
@@ -235,7 +237,8 @@ function tokenizeSuffixUnits(s: string): string[] | null {
       const end = s.indexOf(")", i + 1);
       if (end === -1) return null;
       const inner = s.slice(i + 1, end);
-      if (!/^[0-9]+$/.test(inner)) return null;
+      // ≥2 位且无前导零（如 (10)、(11)），排除 (5)、(010)、(0)
+      if (!/^[1-9][0-9]+$/.test(inner)) return null;
       units.push(s.slice(i, end + 1));
       i = end + 1;
     } else {
