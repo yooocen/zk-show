@@ -7,6 +7,8 @@ describe("model-units", () => {
     expect(isDigitUnit("(10)")).toBe(true);
     expect(isDigitUnit("a")).toBe(false);
     expect(isDigitUnit("(a)")).toBe(false);
+    expect(isDigitUnit("(5)")).toBe(false);
+    expect(isDigitUnit("(010)")).toBe(false);
   });
 
   it("isLetterUnit 仅接受单字母", () => {
@@ -19,12 +21,14 @@ describe("model-units", () => {
     expect(formatUnit("9")).toBe("9");
     expect(formatUnit("a")).toBe("a");
     expect(formatUnit("(10)")).toBe("(10)");
+    expect(formatUnit("010")).toBe("010");
   });
 
   it("unitNumber 解析括号与单数字", () => {
     expect(unitNumber("(10)")).toBe(10);
     expect(unitNumber("(11)")).toBe(11);
     expect(unitNumber("9")).toBe(9);
+    expect(unitNumber("(010)")).toBeNaN();
   });
 
   it("lastUnit 取末尾单元，根码返回整串", () => {
