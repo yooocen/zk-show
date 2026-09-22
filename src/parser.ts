@@ -3,11 +3,13 @@
  *
  * 规则（《卡片编码展示逻辑.md》与《zettelkasten 编码规则-理解.md》）：
  *   - 值按第一个 `/` 切分：前半 = 根（如 `2/21` 的根为 `2`），后半 = 后缀
- *   - 后缀去掉所有 `/` 后按【单字符】切成单元：数字=继续(分支推进)，字母=题外话
- *   - 完整路径 = [根, ...后缀字符]
+ *   - 后缀去掉所有 `/` 后切成单元：括号组为多位数字单元，其余单字符（数字=继续，字母=题外话）
+ *   - 完整路径 = [根, ...后缀单元]
  *   - 父规范码 = 去掉末单元后的规范码；路径仅 1 单元 → 根，无父
- *   - 规范码 = 根 + (路径长 > 1 时有 `/`) + 后缀字符拼接 → 不同写法归一
+ *   - 规范码 = 根 + (路径长 > 1 时有 `/`) + 后缀单元拼接 → 不同写法归一
  */
+
+import { formatUnit } from "./model-units";
 
 export interface ParsedZettel {
   /** 完整路径单元，如 ['1','1','4','a'] */
@@ -20,7 +22,7 @@ export interface ParsedZettel {
 
 function canonicalOf(path: string[]): string {
   if (path.length <= 1) return path[0];
-  return path[0] + "/" + path.slice(1).join("");
+  return path[0] + "/" + path.slice(1).map(formatUnit).join("");
 }
 
 /** 由规范码/原始值归一化出可当作 key 的编码；无效输入返回 null */
@@ -70,13 +72,38 @@ export function parseZettelkastenNo(value: unknown): ParsedZettel | null {
     return null;
   }
 
-  const units = suffixRaw.replace(/\//g, "").split("");
+  const units = tokenizeSuffixUnits(suffixRaw.replace(/\//g, ""));
+  if (units === null) {
+    return null;
+  }
   const path = [root, ...units];
   return {
     path,
     canonical: canonicalOf(path),
     parent: path.length > 1 ? canonicalOf(path.slice(0, -1)) : null,
   };
+}
+
+/** 把后缀（去斜杠后）切分为单元：括号组一个单元，其余单字符一个单元。非法括号返回 null。 */
+function tokenizeSuffixUnits(s: string): string[] | null {
+  const units: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === "(") {
+      const end = s.indexOf(")", i + 1);
+      if (end === -1) return null;
+      const inner = s.slice(i + 1, end);
+      // ≥2 位且无前导零（如 (10)、(11)），排除 (5)、(010)、(0)
+      if (!/^[1-9][0-9]+$/.test(inner)) return null;
+      units.push(s.slice(i, end + 1));
+      i = end + 1;
+    } else {
+      units.push(ch);
+      i += 1;
+    }
+  }
+  return units;
 }
 
 /**

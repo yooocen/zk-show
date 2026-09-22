@@ -72,6 +72,46 @@ describe("parseZettelkastenNo", () => {
     expect(normalizeZettelkastenNo(3)).toBe("3");
     expect(normalizeZettelkastenNo("")).toBeNull();
   });
+
+  it("括号多位单元 1/(10)", () => {
+    expect(parseZettelkastenNo("1/(10)")).toEqual({
+      path: ["1", "(10)"],
+      canonical: "1/(10)",
+      parent: "1",
+    });
+  });
+
+  it("括号多位叠加 1/1(11)", () => {
+    expect(parseZettelkastenNo("1/1(11)")).toEqual({
+      path: ["1", "1", "(11)"],
+      canonical: "1/1(11)",
+      parent: "1/1",
+    });
+  });
+
+  it("括号后接题外话 1/(10)a", () => {
+    expect(parseZettelkastenNo("1/(10)a")).toEqual({
+      path: ["1", "(10)", "a"],
+      canonical: "1/(10)a",
+      parent: "1/(10)",
+    });
+  });
+
+  it("多位根不加括号 10/1", () => {
+    expect(parseZettelkastenNo("10/1")).toEqual({
+      path: ["10", "1"],
+      canonical: "10/1",
+      parent: "10",
+    });
+  });
+
+  it("非法括号返回 null", () => {
+    expect(parseZettelkastenNo("1/(10")).toBeNull();
+    expect(parseZettelkastenNo("1/(a)")).toBeNull();
+    expect(parseZettelkastenNo("1/()")).toBeNull();
+    expect(parseZettelkastenNo("1/(5)")).toBeNull();
+    expect(parseZettelkastenNo("1/(010)")).toBeNull();
+  });
 });
 
 describe("parseZettelkastenNoList", () => {
@@ -106,5 +146,9 @@ describe("parseZettelkastenNoList", () => {
     expect(parseZettelkastenNoList(undefined)).toEqual([]);
     expect(parseZettelkastenNoList(null)).toEqual([]);
     expect(parseZettelkastenNoList(["", "1/"])).toEqual([]);
+  });
+
+  it("多编码含括号", () => {
+    expect(parseZettelkastenNoList("1/(10), 2/3")).toEqual(["1/(10)", "2/3"]);
   });
 });
