@@ -56,6 +56,18 @@ describe("computeView 兼容入口", () => {
     expect(codes(view.branchLane)).toEqual(["1/41"]);
   });
 
+  it("括号多位编码投影到主行链", () => {
+    const graph = new ThreadIndex([
+      { path: "root.md", basename: "根", no: "1" },
+      { path: "a.md", basename: "卡9", no: "1/9" },
+      { path: "b.md", basename: "卡10", no: "1/(10)" },
+      { path: "c.md", basename: "卡11", no: "1/(11)" },
+    ]);
+    const view = computeView(graph, "1/(10)")!;
+    expect(codes(view.baseLane)).toEqual(["1", "1/9", "1/(10)", "1/(11)"]);
+    expect(view.baseLane.cards.filter((card) => card.isCurrent).map((card) => card.code)).toEqual(["1/(10)"]);
+  });
+
   it("索引中没有当前卡时返回 null", () => {
     expect(computeView(idx(), "9/99")).toBeNull();
   });
