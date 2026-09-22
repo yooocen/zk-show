@@ -1,4 +1,4 @@
-import { isDigitUnit, isLetterUnit } from "./model-units";
+import { formatUnit, isDigitUnit, isLetterUnit, lastUnit, unitNumber } from "./model-units";
 import { parseZettelkastenNo } from "./parser";
 import type { InlineLink } from "./inline-links";
 
@@ -25,7 +25,8 @@ export interface TopicGraphNode {
 }
 
 function canonicalFromPath(path: string[]): string {
-  return path.length <= 1 ? path[0] : `${path[0]}/${path.slice(1).join("")}`;
+  if (path.length <= 1) return path[0];
+  return path[0] + "/" + path.slice(1).map(formatUnit).join("");
 }
 
 function edgeKindFor(path: string[]): TopicEdgeKind | null {
@@ -37,10 +38,10 @@ function edgeKindFor(path: string[]): TopicEdgeKind | null {
 }
 
 function compareNodes(a: TopicGraphNode, b: TopicGraphNode, kind: TopicEdgeKind): number {
-  const au = a.code[a.code.length - 1] ?? "";
-  const bu = b.code[b.code.length - 1] ?? "";
+  const au = lastUnit(a.code);
+  const bu = lastUnit(b.code);
   if (kind === "continuation") {
-    const delta = Number(au) - Number(bu);
+    const delta = unitNumber(au) - unitNumber(bu);
     if (delta !== 0) return delta;
   } else {
     const delta = au.toLowerCase().localeCompare(bu.toLowerCase());

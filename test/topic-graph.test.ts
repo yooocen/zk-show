@@ -17,6 +17,21 @@ describe("TopicGraph", () => {
     expect(graph.node("1/4a1")?.parentId).toBe("1/4a");
   });
 
+  it("括号多位视为数字继续并数值排序", () => {
+    const graph = new TopicGraph(
+      ["1", "1/9", "1/(10)", "1/(11)", "1/(10)a"].map((code, i) => ({
+        path: `k${i}.md`,
+        basename: `卡${i}`,
+        no: code,
+      }))
+    );
+
+    expect(graph.node("1/(10)")?.edgeKind).toBe("continuation");
+    expect(graph.node("1/(10)a")?.edgeKind).toBe("offTopic");
+    expect(graph.node("1/(10)")?.parentId).toBe("1");
+    expect(graph.children("1", "continuation").map((n) => n.code)).toEqual(["1/9", "1/(10)", "1/(11)"]);
+  });
+
   it("分别稳定排序数字兄弟与字母兄弟", () => {
     const graph = new TopicGraph(
       ["1", "1/4", "1/43", "1/41", "1/42", "1/4c", "1/4a", "1/4b"].map((code, i) => ({
