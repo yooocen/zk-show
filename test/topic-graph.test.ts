@@ -19,7 +19,7 @@ describe("TopicGraph", () => {
 
   it("括号多位视为数字继续并数值排序", () => {
     const graph = new TopicGraph(
-      ["1", "1/9", "1/(10)", "1/(11)", "1/(10)a"].map((code, i) => ({
+      ["1", "1/(11)", "1/9", "1/(10)", "1/(10)a"].map((code, i) => ({
         path: `k${i}.md`,
         basename: `卡${i}`,
         no: code,
