@@ -71,6 +71,10 @@ export function parseZettelkastenNo(value: unknown): ParsedZettel | null {
   if (root.length === 0) {
     return null;
   }
+  // 括号是保留语法，根（/ 前整串）不允许出现括号
+  if (root.includes("(") || root.includes(")")) {
+    return null;
+  }
 
   const units = tokenizeSuffixUnits(suffixRaw.replace(/\//g, ""));
   if (units === null) {
@@ -98,6 +102,9 @@ function tokenizeSuffixUnits(s: string): string[] | null {
       if (!/^[1-9][0-9]+$/.test(inner)) return null;
       units.push(s.slice(i, end + 1));
       i = end + 1;
+    } else if (ch === ")") {
+      // 游离右括号不属于任何括号组，非法
+      return null;
     } else {
       units.push(ch);
       i += 1;

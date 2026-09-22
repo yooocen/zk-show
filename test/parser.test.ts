@@ -111,6 +111,9 @@ describe("parseZettelkastenNo", () => {
     expect(parseZettelkastenNo("1/()")).toBeNull();
     expect(parseZettelkastenNo("1/(5)")).toBeNull();
     expect(parseZettelkastenNo("1/(010)")).toBeNull();
+    expect(parseZettelkastenNo("1/2)")).toBeNull();
+    expect(parseZettelkastenNo("1)2")).toBeNull();
+    expect(parseZettelkastenNo("(10)")).toBeNull();
   });
 });
 
