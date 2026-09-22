@@ -10,6 +10,7 @@
  */
 import { App, Modal, Notice, TFile } from "obsidian";
 import { parseZettelkastenNo } from "./parser";
+import { formatUnit, isDigitUnit, isLetterUnit, lastUnit, unitNumber } from "./model-units";
 import { TopicGraph, type TopicGraphNode } from "./topic-graph";
 
 type Mode = "manual" | "infer";
@@ -232,8 +233,8 @@ export class ZkNoFormModal extends Modal {
 
   private candidateKind(code: string): string {
     const unit = parseZettelkastenNo(code)?.path.slice(-1)[0] ?? "";
-    if (/^[0-9]$/.test(unit)) return "继续讨论";
-    if (/^[a-zA-Z]$/.test(unit)) return "题外话";
+    if (isDigitUnit(unit)) return "继续讨论";
+    if (isLetterUnit(unit)) return "题外话";
     return "";
   }
 
@@ -282,8 +283,8 @@ export class ZkNoFormModal extends Modal {
     const parsed = parseZettelkastenNo(input);
     if (!parsed) return { code: null, error: "编码不合法（需如 1/4a 或 2）" };
     const units = parsed.path.slice(1);
-    if (!units.every((u) => /^[0-9a-zA-Z]$/.test(u))) {
-      return { code: null, error: "编码不合法（后缀单元需为数字或字母）" };
+    if (!units.every((u) => /^[0-9a-zA-Z]$/.test(u) || /^\([1-9][0-9]+\)$/.test(u))) {
+      return { code: null, error: "编码不合法（后缀单元需为数字、字母或括号多位，如 1/(10)）" };
     }
     const code = parsed.canonical;
     const activePath = this.app.workspace.getActiveFile()?.path ?? null;
@@ -378,17 +379,16 @@ export class ZkNoFormModal extends Modal {
     const digits = this.index.digitChildren(parentCode);
     let maxDigit = 0;
     for (const n of digits) {
-      const unit = n.code[n.code.length - 1] ?? "";
-      const d = Number(unit);
+      const d = unitNumber(lastUnit(n.code));
       if (!Number.isNaN(d) && d > maxDigit) maxDigit = d;
     }
     const nextDigit = maxDigit + 1;
-    if (nextDigit <= 9) out.push(this.appendUnit(parentCode, String(nextDigit)));
+    out.push(this.appendUnit(parentCode, formatUnit(String(nextDigit))));
 
     const letters = this.index.letterChildren(parentCode);
     let maxLetter = "";
     for (const n of letters) {
-      const unit = (n.code[n.code.length - 1] ?? "").toLowerCase();
+      const unit = lastUnit(n.code).toLowerCase();
       if (/^[a-z]$/.test(unit) && unit > maxLetter) maxLetter = unit;
     }
     let nextLetter = "";
@@ -401,9 +401,9 @@ export class ZkNoFormModal extends Modal {
 
   private appendUnit(parentCode: string, unit: string): string {
     const p = parseZettelkastenNo(parentCode);
-    if (!p) return `${parentCode}${unit}`;
+    if (!p) return `${parentCode}${formatUnit(unit)}`;
     const newPath = [...p.path, unit];
-    return newPath.length <= 1 ? newPath[0] : `${newPath[0]}/${newPath.slice(1).join("")}`;
+    return newPath.length <= 1 ? newPath[0] : `${newPath[0]}/${newPath.slice(1).map(formatUnit).join("")}`;
   }
 }
 
