@@ -23,31 +23,26 @@ function placeVertical(
   startY: number,
   positions: Map<string, Point>,
   extraGapAfter?: (node: LayoutNode) => number
-): void {
+): number {
   let y = startY;
   for (const node of nodes) {
     positions.set(node.id, { x, y });
     y += node.height + LAYOUT_METRICS.verticalGap + (extraGapAfter ? extraGapAfter(node) : 0);
   }
+  return y;
 }
 
 /**
  * 竖列卡片自己的"向下提示"（题外话分支）需要预留的竖直空间。
  * 兄弟列默认间距 verticalGap(24) 比提示线长度 verticalHintLength(25) 还小，
- * 不预留的话中间兄弟的虚线提示只能绕到旁边，看起来像挂错了地方。
+ * 而且直线路由还需要额外的 edgeObstacleClearance 净空；不预留的话
+ * 中间兄弟的虚线提示只能绕到旁边，看起来像挂错了地方。
  */
 function hintSpaceAfter(graph: LayoutGraph, node: LayoutNode): number {
   const hasBelowHint = graph.edges.some(
     (edge) => edge.kind === "hint" && edge.placement === "below" && edge.sourceId === node.id
   );
   return hasBelowHint ? LAYOUT_METRICS.verticalHintLength : 0;
-}
-
-function columnHeight(graph: LayoutGraph, nodes: LayoutNode[]): number {
-  return nodes.reduce(
-    (total, node) => total + node.height + LAYOUT_METRICS.verticalGap + hintSpaceAfter(graph, node),
-    0
-  );
 }
 
 function centerX(node: LayoutNode, point: Point): number {
@@ -170,16 +165,17 @@ export function solveLayout(graph: LayoutGraph): SolvedLayout {
         const stackTop = anchorPoint.y + anchor.height + LAYOUT_METRICS.rowGap;
         const previousNodes = previousLane ? nodesForLane(graph, previousLane) : [];
         const reserveHint = (node: LayoutNode) => hintSpaceAfter(graph, node);
-        placeVertical(previousNodes, firstX, stackTop, positions, reserveHint);
-        const focusTop = stackTop + columnHeight(graph, previousNodes);
-        placeHorizontal(branchNodes, firstX, focusTop, positions);
-        // 焦点之后的题外话兄弟紧接焦点行下方，保持同一列与紧凑 verticalGap。
-        const followingNodes = followingLane ? nodesForLane(graph, followingLane) : [];
+        const focusRowTop = placeVertical(previousNodes, firstX, stackTop, positions, reserveHint);
+        placeHorizontal(branchNodes, firstX, focusRowTop, positions);
         const focusRowHeight = Math.max(...branchNodes.map((node) => node.height), 0);
+        // 焦点行里除了焦点卡还有它的数字继续卡，它们自己的题外话提示同样挂在下方，也要留空间。
+        const focusRowHintSpace = Math.max(...branchNodes.map((node) => hintSpaceAfter(graph, node)), 0);
+        // 焦点之后的题外话兄弟紧接焦点行下方，保持同一列与紧凑 verticalGap，并为焦点行的向下提示让位。
+        const followingNodes = followingLane ? nodesForLane(graph, followingLane) : [];
         placeVertical(
           followingNodes,
           firstX,
-          focusTop + focusRowHeight + LAYOUT_METRICS.verticalGap,
+          focusRowTop + focusRowHeight + focusRowHintSpace + LAYOUT_METRICS.verticalGap,
           positions,
           reserveHint
         );

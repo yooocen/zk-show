@@ -33,6 +33,8 @@ describe("solveLayout", () => {
     expect(LAYOUT_METRICS.horizontalGap).toBeGreaterThanOrEqual(40);
     expect(LAYOUT_METRICS.verticalGap).toBeGreaterThanOrEqual(24);
     expect(LAYOUT_METRICS.rowGap).toBeGreaterThanOrEqual(74);
+    // 竖列预留间距 = verticalGap + verticalHintLength，而直线路由还需要 edgeObstacleClearance 净空
+    expect(LAYOUT_METRICS.verticalGap).toBeGreaterThanOrEqual(LAYOUT_METRICS.edgeObstacleClearance);
   });
 
   it("完整数值链水平有序并位于父级上方", () => {
@@ -172,5 +174,32 @@ describe("solveLayout", () => {
     expect(gap).toBeGreaterThanOrEqual(LAYOUT_METRICS.verticalGap + LAYOUT_METRICS.verticalHintLength);
     // 预留后仍属同一紧凑区域，不能被推到 rowGap
     expect(gap).toBeLessThan(LAYOUT_METRICS.rowGap);
+  });
+
+  it("焦点行里的卡片带向下提示时，后续兄弟列也为提示线让位", () => {
+    const family = new TopicGraph(OFFTOPIC_SIBLING_RECORDS);
+    const solved = solveLayout(compileLayoutGraph(projectFocus(family, "1/14a1")!));
+    const origin = node(solved, "1/14a");
+    const following = node(solved, "1/14b");
+    const gap = following.y - (origin.y + origin.height);
+
+    // 1/14a 在焦点行里，它自己的题外话（1/14aa）提示挂在它下方，后续兄弟列必须留出提示线空间
+    expect(gap).toBeGreaterThanOrEqual(LAYOUT_METRICS.verticalGap + LAYOUT_METRICS.verticalHintLength);
+    expect(gap).toBeLessThan(LAYOUT_METRICS.rowGap);
+  });
+
+  it("兄弟场景的关键视图卡片矩形互不相交", () => {
+    const family = new TopicGraph(OFFTOPIC_SIBLING_RECORDS);
+    for (const code of ["1/14a", "1/14a1", "1/14b", "1/14b1", "1/14c"]) {
+      const solved = solveLayout(compileLayoutGraph(projectFocus(family, code)!));
+      for (let i = 0; i < solved.nodes.length; i++) {
+        for (let j = i + 1; j < solved.nodes.length; j++) {
+          expect(
+            overlaps(solved.nodes[i], solved.nodes[j]),
+            `${code}: ${solved.nodes[i].id} overlaps ${solved.nodes[j].id}`
+          ).toBe(false);
+        }
+      }
+    }
   });
 });

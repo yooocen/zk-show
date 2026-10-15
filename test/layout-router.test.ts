@@ -103,4 +103,18 @@ describe("routeEdges", () => {
     expect(stub.y1).toBe(b.y + b.height);
     expect(stub.y2).toBe(b.y + b.height + LAYOUT_METRICS.verticalHintLength);
   });
+
+  it("焦点行里的数字继续卡也把自己的题外话提示垂直挂在下方", () => {
+    const family = new TopicGraph(OFFTOPIC_SIBLING_RECORDS);
+    const routed = routeEdges(solveLayout(compileLayoutGraph(projectFocus(family, "1/14a1")!)));
+    const origin = routed.nodes.find((node) => node.id === "1/14a")!;
+    const stub = routed.edges.find((edge) => edge.groupId?.startsWith("offTopic:1/14a:"))!;
+
+    expect(stub).toBeDefined();
+    expect(stub.kind).toBe("vbar");
+    expect(stub.x1).toBe(origin.x + origin.width / 2);
+    expect(stub.x2).toBe(origin.x + origin.width / 2);
+    expect(stub.y1).toBe(origin.y + origin.height);
+    expect(stub.y2).toBe(origin.y + origin.height + LAYOUT_METRICS.verticalHintLength);
+  });
 });

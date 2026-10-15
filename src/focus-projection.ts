@@ -131,7 +131,7 @@ function addHiddenChildHints(graph: TopicGraph, projection: FocusProjection): Hi
           ? projection.baseLane.cards[projection.baseLane.cards.length - 1].code
           : card.code;
         const placement =
-          isRootOnlyOffTopicSource || rootShowsContinuation || owner?.orientation === "vertical" || owner?.role === "previous"
+          isRootOnlyOffTopicSource || rootShowsContinuation || owner?.orientation === "vertical"
             ? "trailing"
             : "above";
         hints.push({
