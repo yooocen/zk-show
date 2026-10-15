@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<title>zk-show 题外话兄弟卡片：现状 vs 改后</title>
+<style>
+:root{--text-normal:#1f2937;--text-muted:#6b7280;--text-faint:#9ca3af;--text-accent:#2563eb;--text-on-accent:#fff;--background-secondary:#f3f4f6;
+--background-modifier-border:#d1d5db;--text-accent-hover:#1d4ed8;--new:#16a34a}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:24px 28px 60px;background:#fff;color:var(--text-normal)}
+h1{font-size:20px;margin:0 0 6px}
+.lead{color:var(--text-muted);font-size:13px;line-height:1.7;max-width:1100px;margin:0 0 8px}
+.rule{background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid var(--text-accent);border-radius:6px;padding:10px 14px;font-size:13px;line-height:1.8;max-width:1100px;margin:12px 0 24px}
+.rule code{background:#eef2ff;padding:1px 5px;border-radius:4px;font-size:12px}
+h2{font-size:15px;margin:0 0 4px}
+.mono{color:var(--text-muted);font-size:12px}
+.delta{font-size:12.5px;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;display:inline-block;padding:3px 10px;border-radius:999px;margin:0 0 10px}
+section{margin-bottom:34px;border-top:1px solid #eee;padding-top:18px}
+.pair{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.side{flex:1 1 460px;min-width:0}
+.side-label{font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:600}
+.side-label.after{color:var(--text-accent)}
+.viewport{overflow:auto;max-height:520px;border:1px dashed #ccc;padding:8px;background:#fafafa;border-radius:6px}
+.stage{position:relative;font-family:ui-monospace,Consolas,monospace}
+.zk-show-lines{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.zk-show-lines line,.zk-show-lines polyline{fill:none;stroke:var(--text-muted);stroke-width:1.5;stroke-linecap:round}
+.zk-show-lines line.zk-show-vbar,.zk-show-lines polyline.zk-show-poly{stroke-width:2}
+.zk-show-lines polyline.zk-show-poly{stroke:var(--text-faint)}
+.zk-show-card{position:absolute;display:flex;flex-direction:column;justify-content:center;gap:2px;
+padding:6px 12px;border:1.5px solid var(--background-modifier-border);border-radius:10px;background:var(--background-secondary);line-height:1.3}
+.zk-show-card.is-current{border-color:var(--text-accent);background:var(--text-accent)}
+.zk-show-card.is-current .zk-show-title,.zk-show-card.is-current .zk-show-code{color:var(--text-on-accent)}
+.zk-show-card.is-ghost{border-style:dashed;background:transparent;opacity:.55}
+.zk-show-card.is-new{border-color:var(--new);box-shadow:0 0 0 3px rgba(22,163,74,.18)}
+.zk-show-card.is-new.is-current{border-color:var(--text-accent);box-shadow:0 0 0 3px rgba(22,163,74,.35)}
+.zk-show-title{font-size:13px;white-space:nowrap}
+.zk-show-code{font-size:10px;color:var(--text-muted);white-space:nowrap}
+.legend{font-size:12px;color:var(--text-muted);margin:6px 0 0}
+.legend b{color:var(--new)}
+</style>
+</head>
+<body>
+<h1>题外话兄弟卡片：现状 vs 改后</h1>
+<p class="lead">两侧都由仓库真实管线渲染（<code>computeView → layoutView → renderLayout</code>），不是手绘示意图：左侧是当前代码，右侧是本次改动的原型。
+绿色描边的卡片就是这次新显示出来的题外话兄弟。</p>
+<div class="rule">
+<b>规则变化：</b>题外话锚点（如 <code>1/14</code>）下的字母兄弟，<b>焦点之前的沿主干排在焦点行上方，焦点之后的沿主干排在焦点行下方</b>，全部显示为卡片；
+焦点卡与它的数字继续仍是同一条水平主行。原来"后续兄弟折叠成虚线主干末端延伸提示"的做法取消。
+<br/><b>说明：</b><code>1/14a / 1/14b / 1/14c</code> 三张卡是示意数据（真实 vault 目前只有 <code>1/14</code> 与 <code>1/142</code>），标签里带〔示意〕；
+<code>1/11c</code>、<code>1/11a2</code> 两个视图用的是真实 vault 数据。
+</div>
+<section>
+  <h2>查看 1/14a（你举的例子：后续兄弟 b、c 都各自带后续/题外话） <span class="mono">(1/14a)</span></h2>
+  <p class="delta">新增可见 1/14b、1/14c　·　卡片数 5 → 7　·　画布 1498×404 → 1548×694</p>
+  <div class="pair">
+    <div class="side">
+      <div class="side-label">现状（后续兄弟被折叠成延伸提示）</div>
+      <div class="viewport"><div class="stage" style="width:1498px;height:404px"><svg class="zk-show-lines" width="1498" height="404" viewBox="0 0 1498 404"><line class="zk-show-edge zk-show-link" x1="314" y1="97" x2="354" y2="97"/><line class="zk-show-edge zk-show-link" x1="594" y1="97" x2="634" y2="97"/><line class="zk-show-edge zk-show-link" x1="874" y1="97" x2="914" y2="97"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="145" x2="1034" y2="317" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="292" x2="1194" y2="292" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="194" y1="145" x2="194" y2="170" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="754" y1="49" x2="754" y2="24"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="49" x2="1034" y2="24"/><polyline class="zk-show-edge zk-show-poly" points="24,122 24,97 74,97"/></svg><div class="zk-show-card" style="left:74px;top:49px;width:240px;height:96px;"><span class="zk-show-title">线性代数绪论</span><span class="zk-show-code">1/11</span></div><div class="zk-show-card" style="left:354px;top:49px;width:240px;height:96px;"><span class="zk-show-title">第1章-向量引论</span><span class="zk-show-code">1/12</span></div><div class="zk-show-card is-ghost" style="left:634px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/13</span><span class="zk-show-code">1/13</span></div><div class="zk-show-card is-ghost" style="left:914px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/14</span><span class="zk-show-code">1/14</span></div><div class="zk-show-card is-current" style="left:1194px;top:244px;width:240px;height:96px;"><span class="zk-show-title">R^n 之外的三个向量空间〔示意〕</span><span class="zk-show-code">1/14a</span></div></div></div>
+    </div>
+    <div class="side">
+      <div class="side-label after">改后（题外话兄弟全部显示）</div>
+      <div class="viewport"><div class="stage" style="width:1548px;height:694px"><svg class="zk-show-lines" width="1548" height="694" viewBox="0 0 1548 694"><line class="zk-show-edge zk-show-link" x1="314" y1="97" x2="354" y2="97"/><line class="zk-show-edge zk-show-link" x1="594" y1="97" x2="634" y2="97"/><line class="zk-show-edge zk-show-link" x1="874" y1="97" x2="914" y2="97"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="145" x2="1034" y2="557" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="292" x2="1194" y2="292" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="412" x2="1194" y2="412" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="557" x2="1194" y2="557" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="194" y1="145" x2="194" y2="170" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="754" y1="49" x2="754" y2="24"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="49" x2="1034" y2="24"/><line class="zk-show-edge zk-show-cont" x1="1434" y1="412" x2="1484" y2="412"/><line class="zk-show-edge zk-show-vbar" x1="1314" y1="460" x2="1314" y2="485" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-cont" x1="1434" y1="557" x2="1484" y2="557"/><line class="zk-show-edge zk-show-vbar" x1="1314" y1="605" x2="1314" y2="630" stroke-dasharray="4 3"/><polyline class="zk-show-edge zk-show-poly" points="24,122 24,97 74,97"/></svg><div class="zk-show-card" style="left:74px;top:49px;width:240px;height:96px;"><span class="zk-show-title">线性代数绪论</span><span class="zk-show-code">1/11</span></div><div class="zk-show-card" style="left:354px;top:49px;width:240px;height:96px;"><span class="zk-show-title">第1章-向量引论</span><span class="zk-show-code">1/12</span></div><div class="zk-show-card is-ghost" style="left:634px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/13</span><span class="zk-show-code">1/13</span></div><div class="zk-show-card is-ghost" style="left:914px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/14</span><span class="zk-show-code">1/14</span></div><div class="zk-show-card is-new" style="left:1194px;top:364px;width:240px;height:96px;"><span class="zk-show-title">子空间与基的关系〔示意〕</span><span class="zk-show-code">1/14b</span></div><div class="zk-show-card is-new" style="left:1194px;top:509px;width:240px;height:96px;"><span class="zk-show-title">维数与秩的几何意义〔示意〕</span><span class="zk-show-code">1/14c</span></div><div class="zk-show-card is-current" style="left:1194px;top:244px;width:240px;height:96px;"><span class="zk-show-title">R^n 之外的三个向量空间〔示意〕</span><span class="zk-show-code">1/14a</span></div></div></div>
+    </div>
+  </div>
+</section>
+<section>
+  <h2>查看 1/14c（前置兄弟 b 的提示线本来要绕行，现在垂直挂在它下方） <span class="mono">(1/14c)</span></h2>
+  <p class="delta">无新增卡片（该锚点下没有后续兄弟）　·　卡片数 9 → 9　·　画布 1778×814 → 1778×839</p>
+  <div class="pair">
+    <div class="side">
+      <div class="side-label">现状（后续兄弟被折叠成延伸提示）</div>
+      <div class="viewport"><div class="stage" style="width:1778px;height:814px"><svg class="zk-show-lines" width="1778" height="814" viewBox="0 0 1778 814"><line class="zk-show-edge zk-show-link" x1="314" y1="97" x2="354" y2="97"/><line class="zk-show-edge zk-show-link" x1="594" y1="97" x2="634" y2="97"/><line class="zk-show-edge zk-show-link" x1="874" y1="97" x2="914" y2="97"/><line class="zk-show-edge zk-show-link" x1="1434" y1="532" x2="1474" y2="532"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="145" x2="1034" y2="532" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="292" x2="1194" y2="292" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="412" x2="1194" y2="412" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="532" x2="1194" y2="532" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="194" y1="145" x2="194" y2="170" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="754" y1="49" x2="754" y2="24"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="49" x2="1034" y2="24"/><line class="zk-show-edge zk-show-cont" x1="1434" y1="412" x2="1484" y2="412"/><polyline class="zk-show-edge zk-show-poly" points="1314,460 1162,460 1162,485" stroke-dasharray="4 3"/><polyline class="zk-show-edge zk-show-poly" points="24,122 24,97 74,97"/><line class="zk-show-edge zk-show-vbar" x1="1314" y1="580" x2="1314" y2="702" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1314" y1="702" x2="1474" y2="702" stroke-dasharray="4 3"/></svg><div class="zk-show-card" style="left:74px;top:49px;width:240px;height:96px;"><span class="zk-show-title">线性代数绪论</span><span class="zk-show-code">1/11</span></div><div class="zk-show-card" style="left:354px;top:49px;width:240px;height:96px;"><span class="zk-show-title">第1章-向量引论</span><span class="zk-show-code">1/12</span></div><div class="zk-show-card is-ghost" style="left:634px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/13</span><span class="zk-show-code">1/13</span></div><div class="zk-show-card is-ghost" style="left:914px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/14</span><span class="zk-show-code">1/14</span></div><div class="zk-show-card" style="left:1194px;top:244px;width:240px;height:96px;"><span class="zk-show-title">R^n 之外的三个向量空间〔示意〕</span><span class="zk-show-code">1/14a</span></div><div class="zk-show-card" style="left:1194px;top:364px;width:240px;height:96px;"><span class="zk-show-title">子空间与基的关系〔示意〕</span><span class="zk-show-code">1/14b</span></div><div class="zk-show-card is-current" style="left:1194px;top:484px;width:240px;height:96px;"><span class="zk-show-title">维数与秩的几何意义〔示意〕</span><span class="zk-show-code">1/14c</span></div><div class="zk-show-card" style="left:1474px;top:484px;width:240px;height:96px;"><span class="zk-show-title">秩的等价刻画〔示意·c的后继〕</span><span class="zk-show-code">1/14c1</span></div><div class="zk-show-card" style="left:1474px;top:654px;width:240px;height:96px;"><span class="zk-show-title">c 自己的题外话〔示意〕</span><span class="zk-show-code">1/14ca</span></div></div></div>
+    </div>
+    <div class="side">
+      <div class="side-label after">改后（题外话兄弟全部显示）</div>
+      <div class="viewport"><div class="stage" style="width:1778px;height:839px"><svg class="zk-show-lines" width="1778" height="839" viewBox="0 0 1778 839"><line class="zk-show-edge zk-show-link" x1="314" y1="97" x2="354" y2="97"/><line class="zk-show-edge zk-show-link" x1="594" y1="97" x2="634" y2="97"/><line class="zk-show-edge zk-show-link" x1="874" y1="97" x2="914" y2="97"/><line class="zk-show-edge zk-show-link" x1="1434" y1="557" x2="1474" y2="557"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="145" x2="1034" y2="557" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="292" x2="1194" y2="292" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="412" x2="1194" y2="412" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1034" y1="557" x2="1194" y2="557" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="194" y1="145" x2="194" y2="170" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-vbar" x1="754" y1="49" x2="754" y2="24"/><line class="zk-show-edge zk-show-vbar" x1="1034" y1="49" x2="1034" y2="24"/><line class="zk-show-edge zk-show-cont" x1="1434" y1="412" x2="1484" y2="412"/><line class="zk-show-edge zk-show-vbar" x1="1314" y1="460" x2="1314" y2="485" stroke-dasharray="4 3"/><polyline class="zk-show-edge zk-show-poly" points="24,122 24,97 74,97"/><line class="zk-show-edge zk-show-vbar" x1="1314" y1="605" x2="1314" y2="727" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="1314" y1="727" x2="1474" y2="727" stroke-dasharray="4 3"/></svg><div class="zk-show-card" style="left:74px;top:49px;width:240px;height:96px;"><span class="zk-show-title">线性代数绪论</span><span class="zk-show-code">1/11</span></div><div class="zk-show-card" style="left:354px;top:49px;width:240px;height:96px;"><span class="zk-show-title">第1章-向量引论</span><span class="zk-show-code">1/12</span></div><div class="zk-show-card is-ghost" style="left:634px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/13</span><span class="zk-show-code">1/13</span></div><div class="zk-show-card is-ghost" style="left:914px;top:49px;width:240px;height:96px;"><span class="zk-show-title">1/14</span><span class="zk-show-code">1/14</span></div><div class="zk-show-card" style="left:1194px;top:244px;width:240px;height:96px;"><span class="zk-show-title">R^n 之外的三个向量空间〔示意〕</span><span class="zk-show-code">1/14a</span></div><div class="zk-show-card" style="left:1194px;top:364px;width:240px;height:96px;"><span class="zk-show-title">子空间与基的关系〔示意〕</span><span class="zk-show-code">1/14b</span></div><div class="zk-show-card is-current" style="left:1194px;top:509px;width:240px;height:96px;"><span class="zk-show-title">维数与秩的几何意义〔示意〕</span><span class="zk-show-code">1/14c</span></div><div class="zk-show-card" style="left:1474px;top:509px;width:240px;height:96px;"><span class="zk-show-title">秩的等价刻画〔示意·c的后继〕</span><span class="zk-show-code">1/14c1</span></div><div class="zk-show-card" style="left:1474px;top:679px;width:240px;height:96px;"><span class="zk-show-title">c 自己的题外话〔示意〕</span><span class="zk-show-code">1/14ca</span></div></div></div>
+    </div>
+  </div>
+</section>
+<section>
+  <h2>查看 1/11c（真实数据：中间的题外话兄弟） <span class="mono">(1/11c)</span></h2>
+  <p class="delta">新增可见 1/11d　·　卡片数 5 → 6　·　画布 938×594 → 938×714</p>
+  <div class="pair">
+    <div class="side">
+      <div class="side-label">现状（后续兄弟被折叠成延伸提示）</div>
+      <div class="viewport"><div class="stage" style="width:938px;height:594px"><svg class="zk-show-lines" width="938" height="594" viewBox="0 0 938 594"><line class="zk-show-edge zk-show-link" x1="594" y1="482" x2="634" y2="482"/><line class="zk-show-edge zk-show-vbar" x1="194" y1="120" x2="194" y2="507" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="242" x2="354" y2="242" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="362" x2="354" y2="362" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="482" x2="354" y2="482" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-cont" x1="594" y1="242" x2="644" y2="242"/><polyline class="zk-show-edge zk-show-poly" points="24,97 24,72 74,72"/><line class="zk-show-edge zk-show-cont" x1="314" y1="72" x2="364" y2="72"/></svg><div class="zk-show-card" style="left:74px;top:24px;width:240px;height:96px;"><span class="zk-show-title">线性代数绪论</span><span class="zk-show-code">1/11</span></div><div class="zk-show-card" style="left:354px;top:194px;width:240px;height:96px;"><span class="zk-show-title">四个基本子空间</span><span class="zk-show-code">1/11a</span></div><div class="zk-show-card" style="left:354px;top:314px;width:240px;height:96px;"><span class="zk-show-title">主元与秩</span><span class="zk-show-code">1/11b</span></div><div class="zk-show-card is-current" style="left:354px;top:434px;width:240px;height:96px;"><span class="zk-show-title">线性无关</span><span class="zk-show-code">1/11c</span></div><div class="zk-show-card" style="left:634px;top:434px;width:240px;height:96px;"><span class="zk-show-title">阶梯形非零行无关证明</span><span class="zk-show-code">1/11c1</span></div></div></div>
+    </div>
+    <div class="side">
+      <div class="side-label after">改后（题外话兄弟全部显示）</div>
+      <div class="viewport"><div class="stage" style="width:938px;height:714px"><svg class="zk-show-lines" width="938" height="714" viewBox="0 0 938 714"><line class="zk-show-edge zk-show-link" x1="594" y1="482" x2="634" y2="482"/><line class="zk-show-edge zk-show-vbar" x1="194" y1="120" x2="194" y2="602" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="242" x2="354" y2="242" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="362" x2="354" y2="362" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="482" x2="354" y2="482" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-link" x1="194" y1="602" x2="354" y2="602" stroke-dasharray="4 3"/><line class="zk-show-edge zk-show-cont" x1="594" y1="242" x2="644" y2="242"/><polyline class="zk-show-edge zk-show-poly" points="24,97 24,72 74,72"/><line class="zk-show-edge zk-show-cont" x1="314" y1="72" x2="364" y2="72"/></svg><div class="zk-show-card" style="left:74px;top:24px;width:240px;height:96px;"><span class="zk-show-title">线性代数绪论</span><span class="zk-show-code">1/11</span></div><div class="zk-show-card" style="left:354px;top:194px;width:240px;height:96px;"><span class="zk-show-title">四个基本子空间</span><span class="zk-show-code">1/11a</span></div><div class="zk-show-card" style="left:354px;top:314px;width:240px;height:96px;"><span class="zk-show-title">主元与秩</span><span class="zk-show-code">1/11b</span></div><div class="zk-show-card is-new" style="left:354px;top:554px;width:240px;height:96px;"><span class="zk-show-title">矩阵乘法技巧</span><span class="zk-show-code">1/11d</span></div><div class="zk-show-card is-current" style="left:354px;top:434px;width:240px;height:96px;"><span class="zk-show-title">线性无关</span><span class="zk-show-code">1/11c</span></div><div class="zk-show-card" style="left:634px;top:434px;width:240px;height:96px;"><span class="zk-show-title">阶梯形非零行无关证明</span><span class="zk-show-code">1/11c1</span></div></div></div>
+    </div>
+  </div>
+</section>
+<p class="legend">图例：<b>绿色描边</b>=本次新增可见的卡片；蓝色=当前焦点卡；虚线=题外话（offTopic）连接；实线=继续讨论（continuation）。</p>
+</body>
+</html>
