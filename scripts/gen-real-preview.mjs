@@ -22,10 +22,29 @@ function walk(dir, acc) {
 }
 const files = walk(ROOT, []);
 const records = [];
+/**
+ * 与插件一致地取编码：只认 frontmatter 块，且一篇笔记可以声明多个编码
+ * （空格/逗号/分号分隔，或 YAML 数组）。原来只扫正文前 6 行，frontmatter 较长的
+ * 笔记（如 1/14a、1/13 一系）会被整段漏掉，导致这些视图不在预览里。
+ */
+function codesOfFrontmatter(text) {
+  const block = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  const m = (block ? block[1] : "").match(/^zettelkastenNo:\s*(.+)$/m);
+  if (!m) return [];
+  let value = m[1].trim();
+  if (value.startsWith("[") && value.endsWith("]")) value = value.slice(1, -1);
+  return value
+    .split(/[,\s;]+/)
+    .map((item) => item.replace(/^["']|["']$/g, ""))
+    .filter((item) => item !== "");
+}
+
 for (const fp of files) {
-  const head = readFileSync(fp, "utf8").split("\n").slice(0, 6).join("\n");
-  const m = head.match(/zettelkastenNo:\s*"?([^"\s]+)/);
-  if (m) records.push({ path: fp.replace(ROOT + "/", ""), basename: fp.split("\\").pop().replace(/\.md$/, ""), no: m[1] });
+  const basename = fp.split("\\").pop().replace(/\.md$/, "");
+  const notePath = fp.replace(ROOT + "/", "");
+  for (const no of codesOfFrontmatter(readFileSync(fp, "utf8"))) {
+    records.push({ path: notePath, basename, no });
+  }
 }
 records.sort((a, b) => String(a.no).length - String(b.no).length || String(a.no).localeCompare(String(b.no)));
 const codes = [...new Set(records.map((r) => String(r.no)))].filter((c) => c.startsWith("1")).sort();
