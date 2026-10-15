@@ -13,6 +13,18 @@ import { TopicSwitch } from "./topic-switch";
 import { NavButtons, type NavDirection } from "./nav-buttons";
 import { deriveZkNoSwitchOptions, ZkNoSwitch } from "./zkno-switch";
 
+/** 跨窗口（popout）安全的元素判定：不依赖构造函数（各窗口 realm 不同），
+ *  用 DOM 固有属性 nodeType === 1（ELEMENT_NODE）判断，任何窗口都成立。 */
+function isElementNode(target: EventTarget | null | undefined): target is Element {
+  return target !== null && target !== undefined && (target as Node).nodeType === 1;
+}
+
+/** 跨窗口（popout）安全的 HTMLElement 判定，供 close*Popover 中的聚焦回跳使用。
+ *  同样不依赖构造函数，仅校验元素节点具备 focus 方法。 */
+function isHtmlElementNode(target: Element | null | undefined): target is HTMLElement {
+  return target !== null && target !== undefined && target.nodeType === 1 && typeof (target as HTMLElement).focus === "function";
+}
+
 interface ZkShowData {
   /** path → 该 md 上次聚焦的 zkNo 编码。 */
   lastTopicByPath?: Record<string, string>;
@@ -156,6 +168,10 @@ class ZkShowView extends ItemView {
   private focusExpectedPath: string | null = null;
   private focusPinnedUntil = 0;
   private currentLayout: Layout | null = null;
+  /** 每个根话题上次浏览时停留的聚焦卡与视口位置，切换话题时恢复。 */
+  private readonly topicStates = new Map<string, { focusCode: string; viewport: ViewportState }>();
+  /** 切换话题时的聚焦覆盖：刷新优先使用它，直到用户再次导航（点卡/切笔记）。 */
+  private focusOverride: string | null = null;
   private openHintId: string | null = null;
   private hintPopoverEl: HTMLElement | null = null;
   private hintMarkerEl: Element | null = null;
@@ -186,6 +202,8 @@ class ZkShowView extends ItemView {
       // 用户主动切换到其他文件：解除钉住、继续刷新
       this.focusExpectedPath = null;
     }
+    // 用户主动切换笔记：取消话题聚焦覆盖，回到以活动笔记为准
+    this.focusOverride = null;
     this.refresh();
   }
 
@@ -247,11 +265,6 @@ class ZkShowView extends ItemView {
     this.linkPreviewTarget = null;
     this.linkPreviewPath = null;
     this.rootEl?.remove();
-  }
-
-  private resetViewport(): void {
-    this.scale = 1;
-    this.centerCanvas();
   }
 
   /** 把正在查看的卡片居中到可见区（无当前卡时退回画布居中） */
@@ -333,18 +346,18 @@ class ZkShowView extends ItemView {
 
   private onPointerDown = (ev: PointerEvent): void => {
     if (ev.pointerType === "mouse" && ev.button !== 0) return;
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
+    if (isElementNode(ev.target) && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons, .zk-show-empty")) return;
     // 点击画布时清除预选中状态
     this.clearPreSelected();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
-    this.pointerDownTarget = ev.target instanceof Element ? ev.target : null;
+    this.pointerDownTarget = isElementNode(ev.target) ? ev.target : null;
     ev.preventDefault();
     // 确保点击后 rootEl 获得焦点，裸键方向键/Home/End 才能工作
     this.rootEl.focus();
     try {
       this.rootEl.setPointerCapture(ev.pointerId);
     } catch {
-      if (this.pointerDownTarget instanceof Element) this.pointerDownTarget.setPointerCapture(ev.pointerId);
+      if (this.pointerDownTarget) this.pointerDownTarget.setPointerCapture(ev.pointerId);
     }
     if (this.pointerDownTarget?.closest(".zk-show-link-indicator")) {
       this.dragActive = false;
@@ -359,7 +372,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerMove = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
+    if (isElementNode(ev.target) && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons, .zk-show-empty")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     ev.preventDefault();
     this.activePointers.set(ev.pointerId, this.pointFromPointer(ev));
@@ -401,7 +414,7 @@ class ZkShowView extends ItemView {
   };
 
   private onPointerEnd = (ev: PointerEvent): void => {
-    if (ev.target instanceof Element && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons")) return;
+    if (isElementNode(ev.target) && ev.target.closest(".zk-show-hint-popover, .zk-show-link-popover, .zk-show-topic-switch, .zk-show-zkno-switch, .zk-show-nav-buttons, .zk-show-empty")) return;
     if (!this.activePointers.has(ev.pointerId)) return;
     const wasSinglePointer = this.activePointers.size === 1;
     // 拖动判定兜底：快速滑动或触碰后立即离开时，pointermove 可能来不及把 dragMoved
@@ -431,7 +444,7 @@ class ZkShowView extends ItemView {
       } else {
         const now = Date.now();
         if (now - this.lastTapTime < 300) {
-          this.resetViewport();
+          this.centerCanvas();
           this.lastTapTime = 0;
         } else {
           this.navigateFromTarget(this.pointerDownTarget);
@@ -496,6 +509,8 @@ class ZkShowView extends ItemView {
   }
 
   private navigateToCode(code: string, path: string | null): void {
+    // 点卡等显式导航：取消话题聚焦覆盖，恢复以活动笔记驱动的聚焦
+    this.focusOverride = null;
     // 钉住目标 code：openFile 是异步的，.excalidraw.md 这类被插件特殊视图
     // 接管的文件，在过渡期内 getActiveFile 仍可能返回旧文件，从而把刚切换
     // 的焦点覆盖回旧卡。钉住期内 refresh 一律用此 code；直到 getActiveFile
@@ -517,6 +532,7 @@ class ZkShowView extends ItemView {
   /** 在不切换当前笔记的前提下，把图谱聚焦切换到该笔记的另一个 zkNo。 */
   private switchFocus(code: string, path: string | null): void {
     if (path && this.activeCodes?.includes(code)) this.plugin.rememberTopic(path, code);
+    this.focusOverride = null;
     this.focusCode = code;
     this.focusExpectedPath = null;
     this.refresh(true);
@@ -558,14 +574,14 @@ class ZkShowView extends ItemView {
   }
 
   private onKeyDown = (ev: KeyboardEvent): void => {
-    const indicator = ev.target instanceof Element ? ev.target.closest(".zk-show-link-indicator") : null;
+    const indicator = isElementNode(ev.target) ? ev.target.closest(".zk-show-link-indicator") : null;
     if (indicator && (ev.key === "Enter" || ev.key === " ")) {
       ev.preventDefault();
       const code = indicator.getAttribute("data-code");
       if (code) this.showLinkPopover(code, indicator);
       return;
     }
-    const marker = ev.target instanceof Element ? ev.target.closest(".zk-show-hint-marker") : null;
+    const marker = isElementNode(ev.target) ? ev.target.closest(".zk-show-hint-marker") : null;
     if (marker && (ev.key === "Enter" || ev.key === " ")) {
       ev.preventDefault();
       const id = marker.getAttribute("data-hint-id");
@@ -725,7 +741,7 @@ class ZkShowView extends ItemView {
     this.hintPopoverEl = null;
     const marker = this.hintMarkerEl;
     this.hintMarkerEl = null;
-    if (marker instanceof HTMLElement && marker.isConnected) marker.focus();
+    if (isHtmlElementNode(marker) && marker.isConnected) marker.focus();
   }
 
   private closeLinkPopover(): void {
@@ -740,7 +756,7 @@ class ZkShowView extends ItemView {
     this.linkPreviewPath = null;
     const indicator = this.linkIndicatorEl;
     this.linkIndicatorEl = null;
-    if (indicator instanceof HTMLElement && indicator.isConnected) {
+    if (isHtmlElementNode(indicator) && indicator.isConnected) {
       indicator.setAttribute("aria-expanded", "false");
       indicator.classList.remove("is-lit");
       indicator.classList.add(linkIndicatorState(false));
@@ -878,7 +894,7 @@ class ZkShowView extends ItemView {
 
   private onLinkPointerOver = (ev: PointerEvent): void => {
     if (ev.pointerType !== "mouse") return;
-    if (!(ev.target instanceof Element)) return;
+    if (!isElementNode(ev.target)) return;
     const indicator = ev.target.closest(".zk-show-link-indicator");
     if (!indicator) return;
     const code = indicator.getAttribute("data-code");
@@ -892,10 +908,10 @@ class ZkShowView extends ItemView {
 
   private onLinkPointerOut = (ev: PointerEvent): void => {
     if (ev.pointerType !== "mouse") return;
-    if (!(ev.target instanceof Element)) return;
+    if (!isElementNode(ev.target)) return;
     const fromIndicator = ev.target.closest(".zk-show-link-indicator");
     if (!fromIndicator) return;
-    const related = ev.relatedTarget instanceof Element ? ev.relatedTarget : null;
+    const related = isElementNode(ev.relatedTarget) ? ev.relatedTarget : null;
     if (related?.closest(".zk-show-link-indicator, .zk-show-link-popover")) return;
     if (this.linkHoverTimer !== null) {
       window.clearTimeout(this.linkHoverTimer);
@@ -999,8 +1015,31 @@ class ZkShowView extends ItemView {
     if (!this.topicSwitch) {
       this.topicSwitch = new TopicSwitch();
       this.topicSwitch.onChange((code) => {
-        const node = this.plugin.index.node(code);
-        this.navigateToCode(code, node?.path ?? null);
+        // 离开当前话题前，记住当前停留的聚焦卡与视口位置
+        const oldTopic = this.focusCode ? this.plugin.index.rootOf(this.focusCode) : null;
+        if (oldTopic && oldTopic !== code && this.focusCode) {
+          this.topicStates.set(oldTopic, { focusCode: this.focusCode, viewport: this.viewport() });
+        }
+        // 回到上次在该话题停留的卡片；无记录或已失效则聚焦该话题根卡
+        let focusTarget = code;
+        let savedViewport: ViewportState | undefined;
+        const saved = this.topicStates.get(code);
+        if (saved) {
+          const savedNode = this.plugin.index.node(saved.focusCode);
+          if (savedNode && !savedNode.isGhost) {
+            focusTarget = saved.focusCode;
+            savedViewport = saved.viewport;
+          }
+        }
+        this.focusCode = focusTarget;
+        this.focusExpectedPath = null;
+        this.focusOverride = focusTarget;
+        this.refresh(true);
+        if (savedViewport) {
+          this.setViewport(savedViewport);
+        } else {
+          this.centerCanvas();
+        }
       });
       root.appendChild(this.topicSwitch.el);
     }
@@ -1041,7 +1080,7 @@ class ZkShowView extends ItemView {
       this.panX = 0;
       this.panY = 0;
       // 保留用户已设定的缩放比例：切换 md 笔记或重建时仅重置平移并重新居中，
-      // 不再把 scale 重置为 1。缩放比例的显式重置由双击 resetViewport 负责。
+      // 不再把 scale 重置为 1。缩放的显式重置已移除，双击仅居中当前卡片。
       this.activePointers.clear();
       this.endInteraction();
     }
@@ -1049,14 +1088,16 @@ class ZkShowView extends ItemView {
 
     const active = this.app.workspace.getActiveFile();
     const codes = this.resolveActiveCodes(active);
-    const code = pinned ? this.focusCode : codes !== null && active ? this.plugin.lastTopicForPath(active.path, codes) : null;
+    const code = pinned ? this.focusCode : this.focusOverride ?? (codes !== null && active ? this.plugin.lastTopicForPath(active.path, codes) : null);
+    // 话题覆盖生效时可能活动笔记无有效编码，去掉刚插入的空提示
+    if (code !== null) root.querySelectorAll(".zk-show-empty").forEach((el) => el.remove());
     if (!pinned) {
       this.focusCode = code;
       this.focusExpectedPath = null;
     }
     this.activeCodes = codes !== null && codes.length > 1 ? codes : null;
     this.topicSwitch?.setSelected(
-      code !== null && !this.plugin.index.node(code)?.isGhost ? code : null
+      code !== null && !this.plugin.index.node(code)?.isGhost ? this.plugin.index.rootOf(code) : null
     );
     this.zkNoSwitch?.render(
       this.activeCodes ? deriveZkNoSwitchOptions(this.activeCodes, this.plugin.index) : [],
@@ -1098,13 +1139,25 @@ class ZkShowView extends ItemView {
     }
     const codes = parseZettelkastenNoList(this.app.metadataCache.getFileCache(active)?.frontmatter?.zettelkastenNo);
     if (codes.length === 0) {
-      this.empty(`当前笔记「${active.basename}」没有有效的 zettelkastenNo 前台编码，无法参与关系展示。`);
+      this.empty(`当前笔记「${active.basename}」没有有效的 zettelkastenNo 前台编码，无法参与关系展示。`, {
+        label: "新增 zk 关系",
+        onClick: () => new ZkNoFormModal(this.app, this.plugin.index).open(),
+      });
       return null;
     }
     return codes;
   }
 
-  private empty(msg: string): void {
-    this.rootEl.createDiv({ cls: "zk-show-empty", text: msg });
+  private empty(msg: string, action?: { label: string; onClick: () => void }): void {
+    const box = this.rootEl.createDiv({ cls: "zk-show-empty" });
+    box.createDiv({ cls: "zk-show-empty-text", text: msg });
+    if (action) {
+      const btn = box.createEl("button", {
+        cls: "zk-show-empty-action",
+        text: action.label,
+        attr: { type: "button" },
+      });
+      btn.addEventListener("click", action.onClick);
+    }
   }
 }

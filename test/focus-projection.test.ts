@@ -51,6 +51,19 @@ describe("projectFocus", () => {
     }));
   });
 
+  it("深层继续的父卡不在根主行时，来源末端提示其后续同级", () => {
+    const projection = projectFocus(graph, "1/131")!;
+
+    expect(codes(projection.baseLane)).toEqual(["1/13"]);
+    expect(projection.hints).toContainEqual(expect.objectContaining({
+      anchorId: "1/13",
+      sourceId: "1/13",
+      kind: "sourceTail",
+      placement: "trailing",
+      hiddenIds: ["1/14", "1/15"],
+    }));
+  });
+
   it("题外话来源行截断时在来源末端提示隐藏的同级后续", () => {
     const projection = projectFocus(graph, "1/11a")!;
 

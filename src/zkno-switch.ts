@@ -7,6 +7,12 @@ export interface ZkNoSwitchOption {
   zkNo: string;
 }
 
+/** 跨窗口（popout）安全的 Node 判定：不依赖构造函数（各窗口 realm 不同），
+ *  用 DOM 固有属性 nodeType 判断，任何窗口都成立。 */
+function isNodeLike(target: EventTarget | null | undefined): target is Node {
+  return target !== null && target !== undefined && typeof (target as Node).nodeType === "number";
+}
+
 /** 按编码出现顺序去重根话题，生成下拉选项。 */
 export function deriveZkNoSwitchOptions(codes: string[], graph: TopicGraph): ZkNoSwitchOption[] {
   const seen = new Set<string>();
@@ -38,6 +44,7 @@ export class ZkNoSwitch {
   private selectedZkNo: string | null = null;
   private selectHandler: (zkNo: string) => void = () => {};
   private readonly outsidePointerHandler: (ev: PointerEvent) => void;
+  private unbindOutside: (() => void) | null = null;
 
   constructor() {
     this.el = document.createElement("div");
@@ -62,9 +69,21 @@ export class ZkNoSwitch {
     this.el.appendChild(this.panel);
 
     this.outsidePointerHandler = (ev) => {
-      if (ev.target instanceof Node && !this.el.contains(ev.target)) this.close();
+      if (isNodeLike(ev.target) && !this.el.contains(ev.target)) this.close();
     };
-    document.addEventListener("pointerdown", this.outsidePointerHandler);
+    this.bindOutside();
+    // 视图被拖到新窗口（popout）后，把外部点击监听重挂到该窗口的 document 上
+    if (typeof this.el.onWindowMigrated === "function") {
+      this.el.onWindowMigrated(() => this.bindOutside());
+    }
+  }
+
+  private bindOutside(): void {
+    this.unbindOutside?.();
+    const doc = this.el.ownerDocument ?? document;
+    const handler = this.outsidePointerHandler;
+    doc.addEventListener("pointerdown", handler);
+    this.unbindOutside = () => doc.removeEventListener("pointerdown", handler);
   }
 
   /** 每次 refresh 调用：少于 2 个选项时隐藏。 */
@@ -90,7 +109,7 @@ export class ZkNoSwitch {
   }
 
   destroy(): void {
-    document.removeEventListener("pointerdown", this.outsidePointerHandler);
+    this.unbindOutside?.();
     this.el.remove();
   }
 

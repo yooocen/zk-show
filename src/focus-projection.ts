@@ -190,7 +190,12 @@ function sourceLane(
     return { nodes: rootLine.slice(0, parentIndex + 1), folded: false, truncated: parentIndex < rootLine.length - 1 };
   }
   const parent = graph.node(parentId);
-  return { nodes: parent ? [parent] : [], folded: true, truncated: false };
+  if (!parent) return { nodes: [], folded: true, truncated: false };
+  // 父级不在根主行（深层继续）时：其所在数字同行若还有同级排在后面，视为截断，
+  // 以便在最末来源卡右侧生成 sourceTail 提示（例如查看 1/131 时 1/13 右侧暗示 1/14）。
+  const line = parent.parentId ? graph.digitChildren(parent.parentId) : [];
+  const parentSiblingIndex = line.findIndex((node) => node.code === parentId);
+  return { nodes: [parent], folded: true, truncated: parentSiblingIndex >= 0 && parentSiblingIndex < line.length - 1 };
 }
 
 /** 找到当前卡所属题外话主行的起点；字母后的数字继续仍属于这条主行。 */
@@ -366,7 +371,8 @@ export function projectFocus(graph: TopicGraph, focusId: string): FocusProjectio
       (h) => h.anchorId === parentId && h.kind === "continuation" && h.placement === "trailing"
     );
     if (!hasContinuationTail) {
-      const line = graph.topicLine(rootId);
+      const parent = graph.node(parentId);
+      const line = parent?.parentId ? graph.digitChildren(parent.parentId) : graph.topicLine(rootId);
       const visible = new Set(baseLane.cards.map((card) => card.code));
       const sourceIndex = line.findIndex((node) => node.code === parentId);
       const hiddenIds = sourceIndex >= 0 ? line.slice(sourceIndex + 1).map((node) => node.code).filter((code) => !visible.has(code)) : [];

@@ -4,6 +4,12 @@ export interface TopicSwitchOption {
   disabled: boolean;
 }
 
+/** 跨窗口（popout）安全的 Node 判定：不依赖构造函数（各窗口 realm 不同），
+ *  用 DOM 固有属性 nodeType 判断，任何窗口都成立。 */
+function isNodeLike(target: EventTarget | null | undefined): target is Node {
+  return target !== null && target !== undefined && typeof (target as Node).nodeType === "number";
+}
+
 /**
  * 右上角「切换zk话题」下拉。作为视图根容器之外的平级元素绝对定位，
  * 不参与画布 translate/scale 变换，位置固定、不支持缩放。
@@ -16,6 +22,7 @@ export class TopicSwitch {
   private selectedCode: string | null = null;
   private selectHandler: (code: string) => void = () => {};
   private readonly outsidePointerHandler: (ev: PointerEvent) => void;
+  private unbindOutside: (() => void) | null = null;
 
   constructor() {
     this.el = document.createElement("div");
@@ -39,9 +46,21 @@ export class TopicSwitch {
     this.el.appendChild(this.panel);
 
     this.outsidePointerHandler = (ev) => {
-      if (ev.target instanceof Node && !this.el.contains(ev.target)) this.close();
+      if (isNodeLike(ev.target) && !this.el.contains(ev.target)) this.close();
     };
-    document.addEventListener("pointerdown", this.outsidePointerHandler);
+    this.bindOutside();
+    // 视图被拖到新窗口（popout）后，把外部点击监听重挂到该窗口的 document 上
+    if (typeof this.el.onWindowMigrated === "function") {
+      this.el.onWindowMigrated(() => this.bindOutside());
+    }
+  }
+
+  private bindOutside(): void {
+    this.unbindOutside?.();
+    const doc = this.el.ownerDocument ?? document;
+    const handler = this.outsidePointerHandler;
+    doc.addEventListener("pointerdown", handler);
+    this.unbindOutside = () => doc.removeEventListener("pointerdown", handler);
   }
 
   setOptions(options: TopicSwitchOption[]): void {
@@ -106,7 +125,7 @@ export class TopicSwitch {
   }
 
   destroy(): void {
-    document.removeEventListener("pointerdown", this.outsidePointerHandler);
+    this.unbindOutside?.();
     this.el.remove();
   }
 }
