@@ -23,7 +23,6 @@ export interface ProjectionLane {
   relation: TopicEdgeKind | null;
   anchorId: string | null;
   cards: ProjectionCard[];
-  extendSpine?: boolean;
 }
 
 export type HiddenHintKind = "continuation" | "offTopic" | "sourceTail" | "fold";
@@ -37,7 +36,6 @@ export interface HiddenHint {
   placement: HiddenHintPlacement;
   /** 被当前投影省略、点击提示后可查看的节点编码。 */
   hiddenIds: string[];
-  extend?: boolean;
 }
 
 export interface FocusProjection {
@@ -144,15 +142,12 @@ function addHiddenChildHints(graph: TopicGraph, projection: FocusProjection): Hi
       }
 
       if (hiddenLetters.length > 0) {
-        const isBranchAnchor = projection.branchLane?.relation === "offTopic" && card.code === projection.branchLane.anchorId;
-        const hiddenAfterCurrent = isBranchAnchor && hiddenLetters.some((node) => node.siblingOrder > (graph.node(projection.focusId)?.siblingOrder ?? -1));
         hints.push({
           anchorId: card.code,
           sourceId: card.code,
           kind: "offTopic",
           placement: "below",
           hiddenIds: hiddenLetters.map((node) => node.code),
-          ...(hiddenAfterCurrent ? { extend: true } : {}),
         });
       }
     }
@@ -270,7 +265,6 @@ function projectOffTopicLine(graph: TopicGraph, rootId: string, focus: TopicGrap
     previousNodes.length > 0
       ? lane("previous", "previous", "vertical", "below", "offTopic", anchorId, previousNodes, focus.code)
       : null;
-  if (previousLane) previousLane.extendSpine = true;
   // 焦点之后的题外话兄弟同样展示：沿主干排在焦点行下方，不再折叠成延伸提示。
   const followingLane =
     followingNodes.length > 0
@@ -363,27 +357,18 @@ export function projectFocus(graph: TopicGraph, focusId: string): FocusProjectio
     focusId
   );
 
-  const allLetters = graph.letterChildren(parentId);
-  const focusLetterIndex = allLetters.findIndex((node) => node.code === focusId);
-  const previousNodes = relation === "offTopic" && focusLetterIndex > 0 ? allLetters.slice(0, focusLetterIndex) : [];
-  const previousLane =
-    previousNodes.length > 0
-      ? lane("previous", "previous", "vertical", "below", "offTopic", parentId, previousNodes, focusId)
-      : null;
-  if (previousLane) previousLane.extendSpine = true;
-
   const projection: FocusProjection = {
     rootId,
     focusId,
     baseLane,
     branchLane,
-    previousLane,
+    previousLane: null,
     followingLane: null,
     expansionLanes: [],
     hints: [],
     folded: source.folded,
   };
-  projection.expansionLanes = expansionLanes(graph, focusId, cardCodes([baseLane, branchLane, previousLane]));
+  projection.expansionLanes = expansionLanes(graph, focusId, cardCodes([baseLane, branchLane]));
   projection.hints = addHiddenChildHints(graph, projection);
   if (source.truncated) {
     // rootShowsContinuation 已为 baseLane 最末一张卡生成 continuation trailing，

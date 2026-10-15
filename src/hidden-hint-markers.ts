@@ -10,7 +10,6 @@ export interface HiddenHintMarker {
   x: number;
   y: number;
   dashed: boolean;
-  mergedIntoSpine: boolean;
   label: string;
   description: string;
 }
@@ -44,29 +43,15 @@ function hintEdge(layout: Layout, hint: HiddenHint): Edge | undefined {
   return layout.edges.find((edge) => edge.groupId?.startsWith(prefix));
 }
 
-function mergedSpineEdge(layout: Layout, hint: HiddenHint): Edge | undefined {
-  const prefix = `branch-spine:${hint.anchorId}:`;
-  return layout.edges.find((edge) => edge.groupId?.startsWith(prefix) && edge.targetId === undefined);
-}
-
-function isMergedIntoSpine(projection: FocusProjection, hint: HiddenHint): boolean {
-  return hint.kind === "offTopic" &&
-    hint.extend === true &&
-    projection.branchLane?.relation === "offTopic" &&
-    projection.branchLane.anchorId === hint.anchorId;
-}
-
 /**
  * 将隐藏提示的语义锚点映射到真实路由端点。
  *
- * 普通提示对应 compiler 生成的 hint/fold 路由；题外话的 extend 提示在
- * compiler 中并入共享 branch-spine，因此从该 spine 的自由端取点。
+ * 每条提示对应 compiler 生成的 hint/fold 路由，从该路由的自由端取点。
  */
 export function collectHiddenHintMarkers(projection: FocusProjection, layout: Layout): HiddenHintMarker[] {
   const markers: HiddenHintMarker[] = [];
   for (const [index, hint] of projection.hints.entries()) {
-    const merged = isMergedIntoSpine(projection, hint);
-    const edge = merged ? mergedSpineEdge(layout, hint) : hintEdge(layout, hint);
+    const edge = hintEdge(layout, hint);
     if (!edge) continue;
     const point = freePoint(edge, hint.kind);
     markers.push({
@@ -78,7 +63,6 @@ export function collectHiddenHintMarkers(projection: FocusProjection, layout: La
       x: point.x,
       y: point.y,
       dashed: edge.dashed === true,
-      mergedIntoSpine: merged,
       label: HINT_LABELS[hint.kind],
       description: hintDescription(hint),
     });

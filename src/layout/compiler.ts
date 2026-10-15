@@ -96,9 +96,6 @@ export function compileLayoutGraph(projection: FocusProjection): LayoutGraph {
         projection.branchLane.cards[0].id,
         ...(projection.followingLane?.cards.map((card) => card.id) ?? []),
       ];
-      const extend = projection.hints.some(
-        (hint) => hint.anchorId === projection.branchLane?.anchorId && hint.kind === "offTopic" && hint.extend
-      );
       edges.push({
         id: edgeId("branch-spine", projection.branchLane.anchorId, targets, edges.length),
         kind: "spine",
@@ -106,7 +103,6 @@ export function compileLayoutGraph(projection: FocusProjection): LayoutGraph {
         targetIds: targets,
         style: "dashed",
         direction: "below",
-        extend,
       });
       constraints.push({ kind: "rightOf", subjects: targets, anchor: projection.branchLane.anchorId });
     }
@@ -116,12 +112,6 @@ export function compileLayoutGraph(projection: FocusProjection): LayoutGraph {
   // 否则 expansion spine 可能先占位，挡住 baseLane 最末一张卡的 trailing 横线
   // （例如点击 1/11 时 1/1 右侧的"还有 1/2 等"暗示横线会被 1/11→1/11a 的 spine 竖直段穿过）。
   for (const hint of projection.hints) {
-    const mergedIntoSpine =
-      hint.kind === "offTopic" &&
-      hint.extend === true &&
-      projection.branchLane?.relation === "offTopic" &&
-      projection.branchLane.anchorId === hint.anchorId;
-    if (mergedIntoSpine) continue;
     edges.push({
       id: edgeId(hint.kind, hint.anchorId, [], edges.length),
       kind: hint.kind === "fold" ? "fold" : "hint",
@@ -129,7 +119,6 @@ export function compileLayoutGraph(projection: FocusProjection): LayoutGraph {
       targetIds: [],
       style: hintStyle(hint),
       placement: hint.placement,
-      extend: hint.extend,
     });
   }
 

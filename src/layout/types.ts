@@ -46,7 +46,6 @@ export interface LayoutEdgeSpec {
   style: LayoutEdgeStyle;
   direction?: ProjectionDirection;
   placement?: "above" | "below" | "trailing" | "fold-left";
-  extend?: boolean;
 }
 
 export interface LayoutGraph {

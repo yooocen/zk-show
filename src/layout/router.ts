@@ -183,8 +183,7 @@ function routeSpine(spec: LayoutEdgeSpec, context: RouteContext): void {
 
   const below = spec.direction !== "above";
   const startY = below ? source.y + source.height : source.y;
-  let endY = below ? Math.max(...targets.map(centerY)) : Math.min(...targets.map(centerY));
-  if (spec.extend) endY += below ? LAYOUT_METRICS.verticalHintLength : -LAYOUT_METRICS.verticalHintLength;
+  const endY = below ? Math.max(...targets.map(centerY)) : Math.min(...targets.map(centerY));
 
   for (const channelX of candidateChannels(source, targets, context)) {
     const spinePoints = compactPoints([
