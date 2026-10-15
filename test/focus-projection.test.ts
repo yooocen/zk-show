@@ -147,6 +147,21 @@ describe("projectFocus", () => {
     expect(codes(asContinuation.previousLane)).toEqual(codes(asOrigin.previousLane));
   });
 
+  it("题外话主行的数字继续卡展示锚点之后的全部兄弟", () => {
+    const projection = projectFocus(graph, "1/11a2")!;
+
+    expect(codes(projection.branchLane)).toEqual(["1/11a", "1/11a1", "1/11a2"]);
+    expect(codes(projection.previousLane)).toEqual([]);
+    expect(codes(projection.followingLane)).toEqual(["1/11b", "1/11c", "1/11d"]);
+  });
+
+  it("锚点之后没有兄弟时不生成后续泳道", () => {
+    const projection = projectFocus(graph, "1/13a1")!;
+
+    expect(codes(projection.branchLane)).toEqual(["1/13a", "1/13a1"]);
+    expect(projection.followingLane).toBeNull();
+  });
+
   it("查看 1/11 时展开当前卡直接字母子级，并为其他数值卡保留提示", () => {
     const projection = projectFocus(graph, "1/11")!;
     const below = projection.expansionLanes.find((lane) => lane.direction === "below") ?? null;
