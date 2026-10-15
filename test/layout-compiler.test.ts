@@ -25,19 +25,24 @@ describe("compileLayoutGraph", () => {
     );
   });
 
-  it("把字母历史节点与当前节点编译到同一条共享虚线主干", () => {
+  it("把全部字母兄弟与当前节点编译到同一条共享虚线主干", () => {
     const projection = projectFocus(graph, "1/11c")!;
     const layoutGraph = compileLayoutGraph(projection);
     const spine = layoutGraph.edges.find((edge) => edge.kind === "spine" && edge.sourceId === "1/11");
+    const following = layoutGraph.lanes.find((lane) => lane.id === "following")!;
 
     expect(spine).toMatchObject({
       style: "dashed",
-      targetIds: ["1/11a", "1/11b", "1/11c"],
+      targetIds: ["1/11a", "1/11b", "1/11c", "1/11d"],
       direction: "below",
-      extend: true,
     });
+    expect(following.nodeIds).toEqual(["1/11d"]);
     expect(layoutGraph.constraints).toContainEqual(
-      expect.objectContaining({ kind: "rightOf", subjects: ["1/11a", "1/11b", "1/11c"], anchor: "1/11" })
+      expect.objectContaining({
+        kind: "rightOf",
+        subjects: ["1/11a", "1/11b", "1/11c", "1/11d"],
+        anchor: "1/11",
+      })
     );
   });
 

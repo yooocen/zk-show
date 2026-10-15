@@ -40,6 +40,7 @@ export function compileLayoutGraph(projection: FocusProjection): LayoutGraph {
   const sourceLanes: ProjectionLane[] = [
     projection.baseLane,
     ...(projection.previousLane ? [projection.previousLane] : []),
+    ...(projection.followingLane ? [projection.followingLane] : []),
     ...(projection.branchLane ? [projection.branchLane] : []),
     ...projection.expansionLanes,
   ];
@@ -93,6 +94,7 @@ export function compileLayoutGraph(projection: FocusProjection): LayoutGraph {
       const targets = [
         ...(projection.previousLane?.cards.map((card) => card.id) ?? []),
         projection.branchLane.cards[0].id,
+        ...(projection.followingLane?.cards.map((card) => card.id) ?? []),
       ];
       const extend = projection.hints.some(
         (hint) => hint.anchorId === projection.branchLane?.anchorId && hint.kind === "offTopic" && hint.extend

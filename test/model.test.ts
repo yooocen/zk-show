@@ -22,7 +22,7 @@ describe("computeView 兼容入口", () => {
     expect(view.baseLane.cards.filter((card) => card.isCurrent).map((card) => card.code)).toEqual(["1/4"]);
   });
 
-  it("字母分支保留截断来源行、数值后代和三类来源提示", () => {
+  it("字母分支保留截断来源行、数值后代与来源提示，并显示后续兄弟", () => {
     const view = computeView(idx(), "1/4a")!;
 
     // 根话题作为来源行首张直接显示并保持平直连接，不再用 fold 折线隐藏
@@ -31,7 +31,7 @@ describe("computeView 兼容入口", () => {
     expect(view.branchLane).toMatchObject({ relation: "offTopic", direction: "below", anchorId: "1/4" });
     expect(view.folded).toBe(false);
     expect(view.hints).toContainEqual(expect.objectContaining({ anchorId: "1/4", kind: "continuation", placement: "above" }));
-    expect(view.hints).toContainEqual(expect.objectContaining({ anchorId: "1/4", kind: "offTopic", extend: true }));
+    expect(codes(view.followingLane)).toEqual(["1/4b"]);
     expect(view.hints).toContainEqual(expect.objectContaining({ anchorId: "1/4", kind: "continuation", placement: "trailing" }));
   });
 

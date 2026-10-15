@@ -31,21 +31,6 @@ describe("collectHiddenHintMarkers", () => {
     expect(marker).toMatchObject({ kind: "fold", sourceId: "1/11", x: freePoint.x, y: freePoint.y });
   });
 
-  it("题外后续被合并进共享主干时使用主干延伸端点", () => {
-    const view = computeView(index, "1/11c")!;
-    const layout = layoutView(view);
-    const spine = layout.edges.find(
-      (edge) => edge.groupId?.startsWith("branch-spine:1/11:") && edge.targetId === undefined
-    )!;
-    const freePoint = spine.points?.[spine.points.length - 1] ?? { x: spine.x2, y: spine.y2 };
-
-    const marker = collectHiddenHintMarkers(view, layout).find(
-      (current) => current.kind === "offTopic" && current.sourceId === "1/11"
-    )!;
-
-    expect(marker).toMatchObject({ x: freePoint.x, y: freePoint.y, mergedIntoSpine: true });
-  });
-
   it("1/11 来源行右侧显示隐藏的数值后续", () => {
     const view = computeView(index, "1/11a2")!;
     const layout = layoutView(view);

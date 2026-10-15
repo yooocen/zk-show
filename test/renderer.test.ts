@@ -55,7 +55,8 @@ describe("layoutView 通用布局管线", () => {
       (edge) => edge.kind === "vbar" && edge.dashed && edge.sourceId === "1/4" && edge.groupId?.startsWith("branch-spine")
     );
 
-    expect(result.cards).toHaveLength(8);
+    // 来源行 5 张 + 题外话主行 3 张（1/4a、1/4a1、1/4a2）+ 后续兄弟 1 张（1/4b）
+    expect(result.cards).toHaveLength(9);
     expect(current.x).toBeGreaterThan(parent.x + parent.w / 2);
     expect(current.y).toBeGreaterThan(parent.y + parent.h);
     expect(spine).toHaveLength(1);

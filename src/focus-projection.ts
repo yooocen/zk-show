@@ -3,7 +3,7 @@ import type { InlineLink } from "./inline-links";
 
 export type ProjectionDirection = "above" | "below" | "same";
 export type ProjectionOrientation = "horizontal" | "vertical";
-export type ProjectionLaneRole = "source" | "focus" | "expansion" | "previous";
+export type ProjectionLaneRole = "source" | "focus" | "expansion" | "previous" | "following";
 
 export interface ProjectionCard {
   id: string;
@@ -46,6 +46,8 @@ export interface FocusProjection {
   baseLane: ProjectionLane;
   branchLane: ProjectionLane | null;
   previousLane: ProjectionLane | null;
+  /** 焦点之后的题外话兄弟；与 previousLane 对称，排在焦点行下方。 */
+  followingLane: ProjectionLane | null;
   expansionLanes: ProjectionLane[];
   hints: HiddenHint[];
   folded: boolean;
@@ -93,7 +95,13 @@ function cardCodes(lanes: Array<ProjectionLane | null>): Set<string> {
 }
 
 function addHiddenChildHints(graph: TopicGraph, projection: FocusProjection): HiddenHint[] {
-  const lanes = [projection.baseLane, projection.branchLane, projection.previousLane, ...projection.expansionLanes];
+  const lanes = [
+    projection.baseLane,
+    projection.branchLane,
+    projection.previousLane,
+    projection.followingLane,
+    ...projection.expansionLanes,
+  ];
   const visible = cardCodes(lanes);
   const hints: HiddenHint[] = [];
   const laneByCode = new Map<string, ProjectionLane>();
@@ -257,11 +265,17 @@ function projectOffTopicLine(graph: TopicGraph, rootId: string, focus: TopicGrap
   const allLetters = graph.letterChildren(anchorId);
   const originIndex = allLetters.findIndex((node) => node.code === origin.code);
   const previousNodes = originIndex > 0 ? allLetters.slice(0, originIndex) : [];
+  const followingNodes = originIndex >= 0 ? allLetters.slice(originIndex + 1) : [];
   const previousLane =
     previousNodes.length > 0
       ? lane("previous", "previous", "vertical", "below", "offTopic", anchorId, previousNodes, focus.code)
       : null;
   if (previousLane) previousLane.extendSpine = true;
+  // 焦点之后的题外话兄弟同样展示：沿主干排在焦点行下方，不再折叠成延伸提示。
+  const followingLane =
+    followingNodes.length > 0
+      ? lane("following", "following", "vertical", "below", "offTopic", anchorId, followingNodes, focus.code)
+      : null;
 
   const projection: FocusProjection = {
     rootId,
@@ -269,11 +283,16 @@ function projectOffTopicLine(graph: TopicGraph, rootId: string, focus: TopicGrap
     baseLane,
     branchLane,
     previousLane,
+    followingLane,
     expansionLanes: [],
     hints: [],
     folded: source.folded,
   };
-  projection.expansionLanes = expansionLanes(graph, focus.code, cardCodes([baseLane, branchLane, previousLane]));
+  projection.expansionLanes = expansionLanes(
+    graph,
+    focus.code,
+    cardCodes([baseLane, branchLane, previousLane, followingLane])
+  );
   projection.hints = addHiddenChildHints(graph, projection);
   if (source.truncated) {
     // rootShowsContinuation 已为 baseLane 最末一张卡生成 continuation trailing，
@@ -310,6 +329,7 @@ export function projectFocus(graph: TopicGraph, focusId: string): FocusProjectio
       baseLane,
       branchLane: null,
       previousLane: null,
+      followingLane: null,
       expansionLanes: [],
       hints: [],
       folded: false,
@@ -358,6 +378,7 @@ export function projectFocus(graph: TopicGraph, focusId: string): FocusProjectio
     baseLane,
     branchLane,
     previousLane,
+    followingLane: null,
     expansionLanes: [],
     hints: [],
     folded: source.folded,

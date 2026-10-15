@@ -6,6 +6,7 @@ import { routeEdges } from "../src/layout/router";
 import { solveLayout } from "../src/layout/solver";
 import { TopicGraph } from "../src/topic-graph";
 import { MATH_TOPIC_RECORDS } from "./fixtures/math-topic";
+import { OFFTOPIC_SIBLING_RECORDS } from "./fixtures/offtopic-siblings";
 
 const graph = new TopicGraph(MATH_TOPIC_RECORDS);
 
@@ -30,10 +31,10 @@ describe("routeEdges", () => {
     expect(horizontal).toMatchObject({ dashed: false, x2: first.x });
   });
 
-  it("字母分支只生成一条共享虚线主干，并为每张来源卡生成横向接线", () => {
+  it("字母分支只生成一条共享虚线主干，并为每张兄弟卡生成横向接线", () => {
     const routed = route("1/11c");
     const parent = routed.nodes.find((node) => node.id === "1/11")!;
-    const current = routed.nodes.find((node) => node.id === "1/11c")!;
+    const last = routed.nodes.find((node) => node.id === "1/11d")!;
     const spine = routed.edges.filter(
       (edge) => edge.kind === "vbar" && edge.dashed && edge.sourceId === "1/11" && edge.groupId?.startsWith("branch-spine")
     );
@@ -43,9 +44,9 @@ describe("routeEdges", () => {
 
     expect(spine).toHaveLength(1);
     expect(spine[0].x1).toBe(parent.x + parent.width / 2);
-    expect(links.map((edge) => edge.targetId)).toEqual(["1/11a", "1/11b", "1/11c"]);
-    expect(spine[0].y2).toBeGreaterThan(current.y + current.height / 2);
-    expect(spine[0].y2 - (current.y + current.height / 2)).toBe(LAYOUT_METRICS.verticalHintLength);
+    expect(links.map((edge) => edge.targetId)).toEqual(["1/11a", "1/11b", "1/11c", "1/11d"]);
+    // 主干终点是最后一张兄弟卡的中心，不再为"隐藏的后续兄弟"多伸一截
+    expect(spine[0].y2).toBe(last.y + last.height / 2);
   });
 
   it("相邻行相向的隐藏提示竖线占用区域不重叠", () => {
@@ -86,5 +87,20 @@ describe("routeEdges", () => {
     expect(fold?.points?.some((point) => point.y > first.y + first.height / 2)).toBe(true);
     const foldVertical = fold?.points?.[0];
     expect(foldVertical?.y).toBe(first.y + first.height / 2 + LAYOUT_METRICS.verticalHintLength);
+  });
+
+  it("兄弟卡自己的题外话提示垂直挂在它下方，不绕行", () => {
+    const family = new TopicGraph(OFFTOPIC_SIBLING_RECORDS);
+    const routed = routeEdges(solveLayout(compileLayoutGraph(projectFocus(family, "1/14a")!)));
+    const b = routed.nodes.find((node) => node.id === "1/14b")!;
+    const stub = routed.edges.find((edge) => edge.groupId?.startsWith("offTopic:1/14b:"))!;
+
+    expect(stub).toBeDefined();
+    expect(stub.kind).toBe("vbar");
+    expect(stub.dashed).toBe(true);
+    expect(stub.x1).toBe(b.x + b.width / 2);
+    expect(stub.x2).toBe(b.x + b.width / 2);
+    expect(stub.y1).toBe(b.y + b.height);
+    expect(stub.y2).toBe(b.y + b.height + LAYOUT_METRICS.verticalHintLength);
   });
 });

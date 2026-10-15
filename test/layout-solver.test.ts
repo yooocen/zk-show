@@ -6,6 +6,7 @@ import { solveLayout } from "../src/layout/solver";
 import type { PositionedNode } from "../src/layout/types";
 import { TopicGraph } from "../src/topic-graph";
 import { MATH_TOPIC_RECORDS } from "./fixtures/math-topic";
+import { OFFTOPIC_SIBLING_RECORDS } from "./fixtures/offtopic-siblings";
 
 const graph = new TopicGraph(MATH_TOPIC_RECORDS);
 
@@ -131,7 +132,9 @@ describe("solveLayout", () => {
           const first = solved.nodes[i];
           const second = solved.nodes[j];
           if (first.laneId === second.laneId) continue;
-          if (new Set(["previous", "branch"]).has(first.laneId) && new Set(["previous", "branch"]).has(second.laneId)) continue;
+          // previous / branch / following 是同一条题外话区域内的紧凑竖列，行距由 verticalGap 约束
+          const tightLanes = new Set(["previous", "branch", "following"]);
+          if (tightLanes.has(first.laneId) && tightLanes.has(second.laneId)) continue;
           const xOverlaps = first.x < second.x + second.width && first.x + first.width > second.x;
           if (!xOverlaps) continue;
           const gap = Math.max(first.y, second.y) - Math.min(first.y + first.height, second.y + second.height);
@@ -145,5 +148,29 @@ describe("solveLayout", () => {
     const first = solve("1/11").nodes.map(({ id, x, y }) => ({ id, x, y }));
     const second = solve("1/11").nodes.map(({ id, x, y }) => ({ id, x, y }));
     expect(second).toEqual(first);
+  });
+
+  it("后续字母兄弟与前置兄弟、焦点卡保持同一列", () => {
+    const solved = solve("1/11c");
+    const previous = node(solved, "1/11b");
+    const current = node(solved, "1/11c");
+    const following = node(solved, "1/11d");
+
+    expect(current.x).toBe(previous.x);
+    expect(following.x).toBe(previous.x);
+    expect(following.y).toBeGreaterThan(current.y + current.height);
+  });
+
+  it("带向下提示的竖列卡为提示线预留空间，且仍在紧凑行距内", () => {
+    const family = new TopicGraph(OFFTOPIC_SIBLING_RECORDS);
+    const solved = solveLayout(compileLayoutGraph(projectFocus(family, "1/14a")!));
+    const b = node(solved, "1/14b");
+    const c = node(solved, "1/14c");
+    const gap = c.y - (b.y + b.height);
+
+    // 1/14b 有自己的题外话（1/14ba），它的虚线提示要垂直挂在 1/14b 下方
+    expect(gap).toBeGreaterThanOrEqual(LAYOUT_METRICS.verticalGap + LAYOUT_METRICS.verticalHintLength);
+    // 预留后仍属同一紧凑区域，不能被推到 rowGap
+    expect(gap).toBeLessThan(LAYOUT_METRICS.rowGap);
   });
 });

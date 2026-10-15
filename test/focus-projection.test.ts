@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { projectFocus } from "../src/focus-projection";
 import { TopicGraph } from "../src/topic-graph";
 import { MATH_TOPIC_RECORDS } from "./fixtures/math-topic";
+import { OFFTOPIC_SIBLING_RECORDS } from "./fixtures/offtopic-siblings";
 
 const codes = (lane: { cards: Array<{ code: string }> } | null): string[] => lane?.cards.map((card) => card.code) ?? [];
 
 describe("projectFocus", () => {
   const graph = new TopicGraph(MATH_TOPIC_RECORDS);
+  const siblingGraph = new TopicGraph(OFFTOPIC_SIBLING_RECORDS);
 
   it("查看 1/12 时保留完整的数值同级链", () => {
     const projection = projectFocus(graph, "1/12")!;
@@ -77,17 +79,72 @@ describe("projectFocus", () => {
     }));
   });
 
-  it("查看字母分支时保留前置字母兄弟并折叠后续兄弟", () => {
+  it("查看字母分支时前置兄弟在上方竖列、后续兄弟在下方竖列", () => {
     const projection = projectFocus(graph, "1/11c")!;
 
     expect(codes(projection.baseLane)).toEqual(["1/11"]);
     expect(codes(projection.previousLane)).toEqual(["1/11a", "1/11b"]);
     expect(codes(projection.branchLane)).toEqual(["1/11c", "1/11c1"]);
+    expect(codes(projection.followingLane)).toEqual(["1/11d"]);
     expect(projection.branchLane).toMatchObject({ direction: "below", relation: "offTopic", anchorId: "1/11" });
+    expect(projection.followingLane).toMatchObject({
+      direction: "below",
+      relation: "offTopic",
+      anchorId: "1/11",
+      orientation: "vertical",
+    });
     expect(projection.folded).toBe(true);
+    // 锚点下的字母兄弟全部可见后，锚点自己不再产生"后面还有题外分支"的延伸提示
+    expect(projection.hints.some((hint) => hint.anchorId === "1/11" && hint.kind === "offTopic")).toBe(false);
+    // 前置兄弟自己的后续数字仍然以提示线表达
     expect(projection.hints).toContainEqual(
-      expect.objectContaining({ anchorId: "1/11", kind: "offTopic", placement: "below", extend: true })
+      expect.objectContaining({
+        anchorId: "1/11a",
+        sourceId: "1/11a",
+        kind: "continuation",
+        placement: "trailing",
+        hiddenIds: ["1/11a1", "1/11a2"],
+      })
     );
+  });
+
+  it("后续兄弟自己的后续数字与自己的题外话都保留提示线", () => {
+    const projection = projectFocus(siblingGraph, "1/14a")!;
+
+    expect(codes(projection.previousLane)).toEqual([]);
+    expect(codes(projection.branchLane)).toEqual(["1/14a", "1/14a1"]);
+    expect(codes(projection.followingLane)).toEqual(["1/14b", "1/14c"]);
+    // 1/14b 的后续数字 1/14b1：卡右侧实线提示
+    expect(projection.hints).toContainEqual(
+      expect.objectContaining({
+        anchorId: "1/14b",
+        sourceId: "1/14b",
+        kind: "continuation",
+        placement: "trailing",
+        hiddenIds: ["1/14b1"],
+      })
+    );
+    // 1/14b 自己的题外话 1/14ba：卡下方虚线提示
+    expect(projection.hints).toContainEqual(
+      expect.objectContaining({
+        anchorId: "1/14b",
+        sourceId: "1/14b",
+        kind: "offTopic",
+        placement: "below",
+        hiddenIds: ["1/14ba"],
+      })
+    );
+    // 锚点自己不产生延伸提示
+    expect(projection.hints.some((hint) => hint.anchorId === "1/14" && hint.kind === "offTopic")).toBe(false);
+  });
+
+  it("题外话主行上的数字继续卡与起点卡看到同一批兄弟", () => {
+    const asOrigin = projectFocus(siblingGraph, "1/14a")!;
+    const asContinuation = projectFocus(siblingGraph, "1/14a1")!;
+
+    expect(codes(asContinuation.branchLane)).toEqual(["1/14a", "1/14a1"]);
+    expect(codes(asContinuation.followingLane)).toEqual(codes(asOrigin.followingLane));
+    expect(codes(asContinuation.previousLane)).toEqual(codes(asOrigin.previousLane));
   });
 
   it("查看 1/11 时展开当前卡直接字母子级，并为其他数值卡保留提示", () => {
