@@ -117,4 +117,39 @@ describe("routeEdges", () => {
     expect(stub.y1).toBe(origin.y + origin.height);
     expect(stub.y2).toBe(origin.y + origin.height + LAYOUT_METRICS.verticalHintLength);
   });
+
+  it("所有向下提示都从卡片底部垂直下垂，不绕行", () => {
+    const sources = [
+      { label: "", records: MATH_TOPIC_RECORDS, family: graph },
+      { label: "兄弟场景 ", records: OFFTOPIC_SIBLING_RECORDS, family: new TopicGraph(OFFTOPIC_SIBLING_RECORDS) },
+    ];
+    let checked = 0;
+
+    for (const { label, records, family } of sources) {
+      for (const record of records) {
+        const code = String(record.no);
+        const compiled = compileLayoutGraph(projectFocus(family, code)!);
+        const routed = routeEdges(solveLayout(compiled));
+        for (const spec of compiled.edges) {
+          if (spec.kind !== "hint" || spec.placement !== "below") continue;
+          const card = routed.nodes.find((node) => node.id === spec.sourceId);
+          const stub = routed.edges.find((edge) => edge.groupId === spec.id);
+          const where = `${label}${code}：${spec.sourceId}`;
+
+          expect(card, `${where} 的卡片未放置`).toBeDefined();
+          expect(stub, `${where} 缺少提示线段`).toBeDefined();
+          expect(stub!.kind, `${where} 的提示线绕行了`).toBe("vbar");
+          expect(stub!.x1, `${where} 的提示线未对准卡片中心`).toBe(card!.x + card!.width / 2);
+          expect(stub!.x2, `${where} 的提示线未对准卡片中心`).toBe(card!.x + card!.width / 2);
+          expect(stub!.y1, `${where} 的提示线未从卡片底部出发`).toBe(card!.y + card!.height);
+          expect(stub!.y2, `${where} 的提示线长度不足`).toBe(
+            card!.y + card!.height + LAYOUT_METRICS.verticalHintLength
+          );
+          checked += 1;
+        }
+      }
+    }
+
+    expect(checked).toBeGreaterThan(0);
+  });
 });

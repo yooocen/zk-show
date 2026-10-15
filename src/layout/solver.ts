@@ -200,7 +200,12 @@ export function solveLayout(graph: LayoutGraph): SolvedLayout {
     } else {
       let x = anchorPoint.x + anchor.width + LAYOUT_METRICS.horizontalGap;
       const maxWidth = Math.max(...laneNodes.map((node) => node.width), 0);
-      const stackHeight = laneNodes.reduce((height, node) => height + node.height + LAYOUT_METRICS.verticalGap, 0) - LAYOUT_METRICS.verticalGap;
+      const reserve = (node: LayoutNode) => hintSpaceAfter(graph, node);
+      // 展开竖列里每张卡也可能有自己的向下提示（如焦点 1/14 时 1/14a 的题外话），
+      // 和兄弟列一样要预留提示线空间，否则同样会绕行。
+      const stackHeight =
+        laneNodes.reduce((height, node) => height + node.height + LAYOUT_METRICS.verticalGap + reserve(node), 0) -
+        LAYOUT_METRICS.verticalGap;
       const targetTop = anchorPoint.y + anchor.height + LAYOUT_METRICS.rowGap;
       const targetBottom = targetTop + stackHeight;
       for (const edge of graph.edges) {
@@ -218,7 +223,8 @@ export function solveLayout(graph: LayoutGraph): SolvedLayout {
         laneNodes,
         x,
         targetTop,
-        positions
+        positions,
+        reserve
       );
     }
   }
