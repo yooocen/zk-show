@@ -94,6 +94,14 @@ function esc(s) {
 function style(obj) {
   return Object.entries(obj).map(([k, v]) => `${k}:${v};`).join("");
 }
+function findByClass(el, cls) {
+  for (const child of el.children ?? []) {
+    if ((child.attrs?.["class"] || "").split(/\s+/).includes(cls)) return child;
+    const nested = findByClass(child, cls);
+    if (nested) return nested;
+  }
+  return undefined;
+}
 function renderTree(el) {
   if (el.tag === "line") {
     const dash = el.attrs["stroke-dasharray"] ? ` stroke-dasharray="${el.attrs["stroke-dasharray"]}"` : "";
@@ -105,8 +113,8 @@ function renderTree(el) {
   }
   if (el.tag === "div" && el.attrs["class"] && el.attrs["class"].startsWith("zk-show-card") ) {
     const cls = el.attrs["class"] || "";
-    const title = el.children.find((c) => c.attrs["class"] === "zk-show-title");
-    const code = el.children.find((c) => c.attrs["class"] === "zk-show-code");
+    const title = findByClass(el, "zk-show-title");
+    const code = findByClass(el, "zk-show-code");
     return `<div class="${cls}" style="${style(el.style)}" title="${esc(el.attrs["title"] || "")}" path="${esc(el.attrs["data-path"] || "")}">${title ? `<span class="zk-show-title">${esc(title.attrs["data-text"] || "")}</span>` : ""}${code ? `<span class="zk-show-code">${esc(code.attrs["data-text"] || "")}</span>` : ""}</div>`;
   }
   return "";
