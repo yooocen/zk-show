@@ -3,6 +3,7 @@ import { projectFocus } from "../src/focus-projection";
 import { compileLayoutGraph } from "../src/layout/compiler";
 import { LAYOUT_METRICS } from "../src/layout/geometry";
 import { solveLayout } from "../src/layout/solver";
+import { OFF_TOPIC_LANE_IDS } from "../src/layout/types";
 import type { PositionedNode } from "../src/layout/types";
 import { TopicGraph } from "../src/topic-graph";
 import { MATH_TOPIC_RECORDS } from "./fixtures/math-topic";
@@ -135,7 +136,9 @@ describe("solveLayout", () => {
           const second = solved.nodes[j];
           if (first.laneId === second.laneId) continue;
           // previous / branch / following 是同一条题外话区域内的紧凑竖列，行距由 verticalGap 约束
-          const tightLanes = new Set(["previous", "branch", "following"]);
+          // （同列 + 紧凑间距由"后续字母兄弟与前置兄弟、焦点卡保持同一列"与
+          //  "历史节点与当前节点保持同一泳道并使用紧凑内部间距"两条测试保证）
+          const tightLanes = new Set(OFF_TOPIC_LANE_IDS);
           if (tightLanes.has(first.laneId) && tightLanes.has(second.laneId)) continue;
           const xOverlaps = first.x < second.x + second.width && first.x + first.width > second.x;
           if (!xOverlaps) continue;

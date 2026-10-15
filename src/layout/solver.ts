@@ -1,5 +1,6 @@
 import { LAYOUT_METRICS } from "./geometry";
 import { buildLaneRegions, enforceRegionClearance } from "./regions";
+import { OFF_TOPIC_LANE_IDS } from "./types";
 import type { LayoutGraph, LayoutLane, LayoutNode, PositionedNode, SolvedLayout } from "./types";
 
 type Point = { x: number; y: number };
@@ -62,10 +63,9 @@ function verticalClearance(a: PositionedNode, b: PositionedNode): number {
 }
 
 function laneGroup(graph: LayoutGraph, laneId: string): string[] {
-  const offTopicLaneIds = ["previous", "branch", "following"];
   const branch = graph.lanes.find((lane) => lane.id === "branch");
-  if (branch?.relation === "offTopic" && offTopicLaneIds.includes(laneId)) {
-    return graph.lanes.filter((lane) => offTopicLaneIds.includes(lane.id)).map((lane) => lane.id);
+  if (branch?.relation === "offTopic" && OFF_TOPIC_LANE_IDS.includes(laneId)) {
+    return graph.lanes.filter((lane) => OFF_TOPIC_LANE_IDS.includes(lane.id)).map((lane) => lane.id);
   }
   return [laneId];
 }

@@ -1,4 +1,5 @@
 import { LAYOUT_METRICS } from "./geometry";
+import { OFF_TOPIC_LANE_IDS } from "./types";
 import type { LayoutGraph, LayoutLane } from "./types";
 
 export interface LaneRegion {
@@ -50,8 +51,7 @@ function regionDirection(lanes: LayoutLane[]): LaneRegion["direction"] {
 /** Group semantically coupled lanes before calculating vertical envelopes. */
 export function buildLaneRegions(graph: LayoutGraph): LaneRegion[] {
   const branch = graph.lanes.find((lane) => lane.id === "branch");
-  const offTopicLaneIds = ["previous", "branch", "following"];
-  const offTopicLanes = graph.lanes.filter((lane) => offTopicLaneIds.includes(lane.id));
+  const offTopicLanes = graph.lanes.filter((lane) => OFF_TOPIC_LANE_IDS.includes(lane.id));
   const mergedOffTopic = branch?.relation === "offTopic" && offTopicLanes.length > 0 ? offTopicLanes.map((lane) => lane.id) : null;
   const grouped = new Set(mergedOffTopic ?? []);
   const regions: LaneRegion[] = [];

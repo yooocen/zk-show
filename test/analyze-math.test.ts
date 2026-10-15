@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import { ThreadIndex, computeView } from "../src/model";
 import { layoutView, type PlacedCard } from "../src/renderer";
 import { MATH_TOPIC_RECORDS } from "./fixtures/math-topic";
+import { OFFTOPIC_SIBLING_RECORDS } from "./fixtures/offtopic-siblings";
 
 const index = new ThreadIndex(MATH_TOPIC_RECORDS);
+const siblingIndex = new ThreadIndex(OFFTOPIC_SIBLING_RECORDS);
 
-function layout(code: string) {
-  return layoutView(computeView(index, code)!);
+function layout(code: string, source: ThreadIndex = index) {
+  return layoutView(computeView(source, code)!);
 }
 
 function overlaps(a: PlacedCard, b: PlacedCard): boolean {
@@ -78,10 +80,12 @@ describe("数学话题真实数据回归", () => {
     );
   });
 
-  for (const record of MATH_TOPIC_RECORDS) {
-    const code = String(record.no);
-    it(`${code}：无重叠、无裁切、当前卡唯一、线段无重复`, () => {
-      const result = layout(code);
+  for (const [code, source, label] of [
+    ...MATH_TOPIC_RECORDS.map((record) => [String(record.no), index, ""] as const),
+    ...OFFTOPIC_SIBLING_RECORDS.map((record) => [String(record.no), siblingIndex, "兄弟场景 "] as const),
+  ]) {
+    it(`${label}${code}：无重叠、无裁切、当前卡唯一、线段无重复`, () => {
+      const result = layout(code, source);
       expect(result.cards.filter((card) => card.isCurrent).map((card) => card.code)).toEqual([code]);
 
       for (let i = 0; i < result.cards.length; i++) {

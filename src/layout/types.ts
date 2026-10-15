@@ -28,6 +28,12 @@ export interface LayoutLane {
 
 export type LayoutConstraintKind = "sameRow" | "above" | "below" | "rightOf" | "ordered" | "gap";
 
+/**
+ * 题外话视图里共享同一条竖列的泳道：碰撞分组与区域间距必须对它们保持一致，
+ * 所以放在这里由 solver 与 regions 共用，避免两处列表各改一半。
+ */
+export const OFF_TOPIC_LANE_IDS: readonly string[] = ["previous", "branch", "following"];
+
 export interface LayoutConstraint {
   kind: LayoutConstraintKind;
   subjects: string[];
