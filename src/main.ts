@@ -462,6 +462,8 @@ class ZkShowView extends ItemView {
   }
 
   private onWheel = (ev: WheelEvent): void => {
+    // 下拉面板内的滚轮交还面板原生滚动，Ctrl+滚轮也不在面板上缩放画布
+    if (isElementNode(ev.target) && ev.target.closest(".zk-show-topic-switch, .zk-show-zkno-switch")) return;
     if (!ev.ctrlKey) {
       return;
     }
@@ -1043,13 +1045,8 @@ class ZkShowView extends ItemView {
       });
       root.appendChild(this.topicSwitch.el);
     }
-    this.topicSwitch.setOptions(
-      collectRootTopics(this.plugin.index).map((item) => ({
-        code: item.code,
-        title: item.title,
-        disabled: item.isGhost,
-      }))
-    );
+    // 只列出真实存在的根话题（缺号跳过、按编码顺序）
+    this.topicSwitch.setOptions(collectRootTopics(this.plugin.index));
 
     // 右下角导航按钮组，仅创建一次
     if (!this.navButtons) {
