@@ -96,18 +96,31 @@ describe("TopicGraph", () => {
     expect(graph.node("2/3b")).toMatchObject({ path: "a.md", isGhost: false, title: "多主题" });
   });
 
-  it("collectRootTopics 返回全部根话题及标题/幽灵标记", () => {
+  it("collectRootTopics 只返回真实存在的根话题，缺号不补、按数值升序", () => {
     const graph = new TopicGraph([
       { path: "root1.md", basename: "数学", no: "1" },
-      { path: "child1.md", basename: "子卡", no: "1/41" },
       { path: "root2.md", basename: "编程", no: "2" },
-      { path: "deep.md", basename: "深处", no: "3/a/1" },
+      { path: "root5.md", basename: "写作", no: "5" },
+      { path: "root10.md", basename: "第十个话题", no: "10" },
+      { path: "child.md", basename: "子卡", no: "2/21" },
     ]);
     const items = collectRootTopics(graph);
-    expect(items.map((i) => i.code)).toEqual(["1", "2", "3"]);
-    expect(items.find((i) => i.code === "1")).toMatchObject({ title: "数学", isGhost: false });
-    expect(items.find((i) => i.code === "2")).toMatchObject({ title: "编程", isGhost: false });
-    // 根 3 只有真实子级 3/a/1，根节点本身是幽灵
-    expect(items.find((i) => i.code === "3")).toMatchObject({ title: "3", isGhost: true });
+    expect(items.map((i) => i.code)).toEqual(["1", "2", "5", "10"]);
+    expect(items.map((i) => i.code)).not.toContain("3");
+    expect(items.map((i) => i.code)).not.toContain("4");
+    expect(items.find((i) => i.code === "5")).toMatchObject({ title: "写作" });
+  });
+
+  it("collectRootTopics 不返回没有根 md 的幽灵根", () => {
+    const graph = new TopicGraph([{ path: "deep.md", basename: "深处", no: "3/a/1" }]);
+    expect(collectRootTopics(graph)).toEqual([]);
+  });
+
+  it("collectRootTopics 非数字根排在数字根之后", () => {
+    const graph = new TopicGraph([
+      { path: "letter.md", basename: "字母根", no: "b" },
+      { path: "digit.md", basename: "数字根", no: "2" },
+    ]);
+    expect(collectRootTopics(graph).map((i) => i.code)).toEqual(["2", "b"]);
   });
 });

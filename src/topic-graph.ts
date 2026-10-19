@@ -177,18 +177,33 @@ export class TopicGraph {
 export interface RootTopicItem {
   code: string;
   title: string;
-  isGhost: boolean;
 }
 
-/** 收集所有根话题（无父节点的顶层编码），按数字/字典序排序。 */
+/**
+ * 根话题排序：纯数字根按数值升序且整体排在非数字根之前，其余按本地化数值序，
+ * 完全相同再按原始码比较，保证顺序稳定。
+ */
+export function compareRootCodes(a: string, b: string): number {
+  const aIsNumber = /^[0-9]+$/.test(a);
+  const bIsNumber = /^[0-9]+$/.test(b);
+  if (aIsNumber && bIsNumber) {
+    const delta = Number(a) - Number(b);
+    return delta !== 0 ? delta : a.localeCompare(b);
+  }
+  if (aIsNumber !== bIsNumber) return aIsNumber ? -1 : 1;
+  const delta = a.localeCompare(b, undefined, { numeric: true });
+  return delta !== 0 ? delta : a.localeCompare(b);
+}
+
+/**
+ * 收集真实存在的根话题（无父节点的顶层编码，且本身有对应的 md 文件），按编码顺序排序。
+ * 只遍历图中已有节点：库里是 1、2、5 就只返回这三个，绝不会补出不存在的 3、4；
+ * 只有 3/1 而没有 3.md 时，根 3 是幽灵节点，不进入下拉。
+ */
 export function collectRootTopics(graph: TopicGraph): RootTopicItem[] {
   return graph
     .allNodes()
-    .filter((node) => node.parentId === null)
-    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
-    .map((node) => ({
-      code: node.code,
-      title: node.isGhost ? node.code : node.title,
-      isGhost: node.isGhost,
-    }));
+    .filter((node) => node.parentId === null && !node.isGhost)
+    .map((node) => ({ code: node.code, title: node.title }))
+    .sort((a, b) => compareRootCodes(a.code, b.code));
 }
