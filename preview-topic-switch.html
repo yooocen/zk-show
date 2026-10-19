@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>zk-show 切换zk话题下拉预览</title>
+<style>
+:root {
+  --background-primary: #fff;
+  --background-secondary: #f2f3f5;
+  --background-modifier-border: #d0d3d8;
+  --background-modifier-border-hover: #b0b4ba;
+  --background-modifier-accent: rgba(120, 120, 255, .18);
+  --text-normal: #1e1e1e;
+  --text-muted: #666;
+  --text-faint: #999;
+  --font-interface: -apple-system, "Segoe UI", sans-serif;
+  --font-monospace: Consolas, monospace;
+}
+body { margin: 0; padding: 16px; font-family: var(--font-interface); }
+h1 { font-size: 18px; }
+h2 { font-size: 14px; margin: 18px 0 6px; }
+pre.metrics { font: 12px var(--font-monospace); background: #fafafa; padding: 6px 8px; white-space: pre-wrap; }
+</style>
+<style>.zk-show-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  overflow: hidden;
+  font-family: var(--font-monospace);
+  cursor: grab;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.zk-show-canvas {
+  position: relative;
+  transform-origin: 0 0;
+  touch-action: none;
+}
+
+.zk-show-root.is-panning {
+  cursor: grabbing;
+}
+
+.zk-show-root .zk-show-lines {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+  touch-action: none;
+  shape-rendering: geometricPrecision;
+}
+
+.zk-show-root .zk-show-edge {
+  fill: none;
+  stroke: var(--text-faint);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.zk-show-root .zk-show-edge.zk-show-vbar,
+.zk-show-root .zk-show-edge.zk-show-poly {
+  stroke-width: 2;
+}
+
+.zk-show-root .zk-show-edge.zk-show-cont {
+  stroke: var(--text-faint);
+}
+
+.zk-show-root .zk-show-edge.zk-show-poly {
+  stroke: var(--text-faint);
+}
+
+.zk-show-hint-marker {
+  pointer-events: all;
+  cursor: help;
+  outline: none;
+}
+
+.zk-show-hint-hit {
+  fill: transparent;
+  stroke: none;
+}
+
+.zk-show-hint-dot {
+  fill: var(--background-primary);
+  stroke: var(--text-faint);
+  stroke-width: 1.5;
+  transition: fill 0.15s ease, stroke 0.15s ease, r 0.15s ease;
+}
+
+.zk-show-hint-pulse {
+  fill: none;
+  stroke: var(--text-accent);
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.zk-show-hint-marker:hover .zk-show-hint-dot,
+.zk-show-hint-marker:focus .zk-show-hint-dot {
+  fill: var(--interactive-accent);
+  stroke: var(--interactive-accent);
+}
+
+.zk-show-hint-marker:hover .zk-show-hint-pulse,
+.zk-show-hint-marker:focus .zk-show-hint-pulse {
+  opacity: 0.25;
+}
+
+.zk-show-hint-marker.dashed .zk-show-hint-dot {
+  stroke-dasharray: 2 2;
+}
+
+.zk-show-hint-popover {
+  position: absolute;
+  z-index: 20;
+  width: min(280px, calc(100% - 16px));
+  max-height: 240px;
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: var(--background-primary);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.2);
+  font-family: var(--font-interface);
+  color: var(--text-normal);
+}
+
+.zk-show-hint-popover-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.zk-show-hint-popover-description,
+.zk-show-hint-popover-source {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.zk-show-hint-popover-source {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.zk-show-hint-popover-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.zk-show-hint-node {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.zk-show-hint-node:hover,
+.zk-show-hint-node:focus {
+  outline: none;
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
+.zk-show-hint-node.is-ghost {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.zk-show-hint-node-code {
+  color: var(--text-accent);
+  font-family: var(--font-monospace);
+}
+
+.zk-show-hint-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zk-show-card {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 8px 12px 10px;
+  border: 1.5px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: var(--background-secondary);
+  cursor: pointer;
+  overflow: hidden;
+  line-height: 1.3;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.zk-show-card.has-inline-links {
+  padding-left: 12px;
+}
+
+.zk-show-card-header {
+  display: flex;
+  min-height: 14px;
+  align-items: center;
+  gap: 7px;
+  line-height: 1;
+}
+
+.zk-show-card-divider {
+  height: 0;
+  margin: 7px 0 9px;
+  border-top: 1px solid var(--background-modifier-border-hover);
+  background: transparent;
+  opacity: 1;
+}
+
+.zk-show-card-body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.zk-show-link-indicator {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  appearance: none;
+  border: 2px solid var(--text-muted);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  z-index: 1;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.zk-show-link-indicator.is-lit::before {
+  content: none;
+}
+
+.zk-show-link-indicator.is-unlit {
+  opacity: 0.65;
+}
+
+.zk-show-link-indicator.is-lit {
+  border-color: var(--color-yellow, #ffd166);
+  background: var(--color-yellow, #ffd166);
+  box-shadow: 0 0 5px 2px color-mix(in srgb, var(--color-yellow, #ffd166) 75%, transparent);
+  opacity: 1;
+}
+
+.zk-show-link-indicator:hover,
+.zk-show-link-indicator:focus-visible {
+  outline: none;
+}
+
+.zk-show-link-indicator:focus-visible {
+  box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 3px var(--text-accent);
+}
+
+.zk-show-card.is-current .zk-show-link-indicator.is-unlit {
+  border-color: var(--text-on-accent);
+}
+
+.zk-show-link-popover {
+  position: absolute;
+  z-index: 20;
+  width: min(300px, calc(100% - 16px));
+  max-height: 280px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: var(--background-primary);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.2);
+  font-family: var(--font-interface);
+  color: var(--text-normal);
+}
+
+.zk-show-link-section {
+  margin-bottom: 8px;
+}
+
+.zk-show-link-section:last-child {
+  margin-bottom: 0;
+}
+
+.zk-show-link-section-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.zk-show-link-popover-list {
+  display: grid;
+  gap: 4px;
+}
+
+.zk-show-link-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.zk-show-link-item:hover,
+.zk-show-link-item:focus {
+  outline: none;
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
+.zk-show-link-item.is-unresolved {
+  cursor: default;
+  color: var(--text-muted);
+  opacity: 0.65;
+}
+
+.zk-show-link-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.zk-show-link-item-zkno {
+  flex: 0 0 auto;
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  white-space: nowrap;
+}
+
+.zk-show-link-item-zkno.is-external {
+  color: var(--color-orange, #f59f00);
+  background: color-mix(in srgb, var(--color-orange, #f59f00) 16%, transparent);
+}
+
+.zk-show-card:hover {
+  border-color: var(--text-accent-hover);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
+}
+
+.zk-show-card.is-pre-selected {
+  border-color: var(--text-accent-hover);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-hover);
+  outline: 2px solid var(--text-accent);
+  outline-offset: -2px;
+}
+
+.zk-show-card.is-current {
+  border-color: var(--interactive-accent);
+  background: var(--interactive-accent);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+
+.zk-show-card.is-current .zk-show-card-divider {
+  border-top-color: color-mix(in srgb, var(--text-on-accent) 55%, transparent);
+}
+
+.zk-show-card.is-current .zk-show-title,
+.zk-show-card.is-current .zk-show-code {
+  color: var(--text-on-accent);
+}
+
+.zk-show-card.is-ghost {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
+  opacity: 0.55;
+}
+
+.zk-show-card .zk-show-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  color: var(--text-normal);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+
+.zk-show-card .zk-show-code {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zk-show-root .zk-show-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: var(--font-interface);
+  line-height: 1.6;
+  text-align: center;
+  pointer-events: none;
+}
+
+.zk-show-root .zk-show-empty-action {
+  pointer-events: auto;
+  padding: 6px 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font-interface);
+  transition: background .12s ease, border-color .12s ease, transform .06s ease;
+}
+
+.zk-show-root .zk-show-empty-action:hover {
+  background: var(--background-secondary-alt, var(--background-secondary));
+  border-color: var(--background-modifier-border-hover);
+}
+
+.zk-show-root .zk-show-empty-action:active {
+  transform: translateY(1px);
+}
+
+/* ===== zettelkastenNo 设置表单 ===== */
+.zk-show-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: var(--font-interface);
+  width: 100%;
+  padding: 0;
+}
+
+.zk-show-form-active {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: baseline;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.zk-show-form-file {
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.zk-show-form-current {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: 12px;
+}
+
+.zk-show-form-warn {
+  color: var(--text-warning, var(--text-error));
+}
+
+.zk-show-form-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.zk-show-form-tab {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .12s ease, color .12s ease;
+}
+
+.zk-show-form-tab:hover {
+  color: var(--text-normal);
+}
+
+.zk-show-form-tab.is-active {
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border-color: var(--background-modifier-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+}
+
+.zk-show-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+}
+
+.zk-show-form-section.is-hidden {
+  display: none;
+}
+
+.zk-show-form-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.zk-show-form-input,
+.zk-show-form-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+  font-family: var(--font-monospace);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.zk-show-form-input:hover,
+.zk-show-form-select:hover {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.zk-show-form-input:focus,
+.zk-show-form-select:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 3px var(--background-modifier-accent);
+}
+
+.zk-show-form-select:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.zk-show-form-candidates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zk-show-form-candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.zk-show-form-candidate:hover {
+  background: var(--background-secondary);
+}
+
+.zk-show-form-candidate.is-selected {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-accent);
+}
+
+.zk-show-form-radio {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--interactive-accent);
+}
+
+.zk-show-form-candidate-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  cursor: pointer;
+  font-family: var(--font-monospace);
+}
+
+.zk-show-form-candidate-label code {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.zk-show-form-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-family: var(--font-interface);
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.zk-show-form-tag.is-cont {
+  color: var(--color-blue, #4080ff);
+  background: color-mix(in srgb, var(--color-blue, #4080ff) 14%, transparent);
+}
+
+.zk-show-form-tag.is-off {
+  color: var(--color-orange, #f59f00);
+  background: color-mix(in srgb, var(--color-orange, #f59f00) 14%, transparent);
+}
+
+.zk-show-form-tag.is-root {
+  color: var(--color-purple, #a855f7);
+  background: color-mix(in srgb, var(--color-purple, #a855f7) 14%, transparent);
+}
+
+.zk-show-form-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 6px 2px;
+  line-height: 1.6;
+}
+
+.zk-show-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.zk-show-form-btn {
+  padding: 8px 18px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .12s ease, border-color .12s ease, transform .06s ease;
+}
+
+.zk-show-form-btn:hover {
+  background: var(--background-secondary-alt, var(--background-secondary));
+  border-color: var(--background-modifier-border-hover);
+}
+
+.zk-show-form-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .15);
+}
+
+.zk-show-form-btn-primary:hover {
+  filter: brightness(1.06);
+}
+
+.zk-show-form-btn:active {
+  transform: translateY(1px);
+}
+
+.zk-show-form-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.zk-show-form-checkbox {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--interactive-accent);
+}
+
+.zk-show-form-toggle-label {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-normal);
+}
+
+.zk-show-form-infer-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zk-show-form-infer-fields.is-hidden {
+  display: none;
+}
+
+.zk-show-form-hint {
+  font-size: 12px;
+  min-height: 16px;
+  font-family: var(--font-interface);
+  line-height: 1.5;
+}
+
+.zk-show-form-hint-muted {
+  color: var(--text-faint);
+}
+
+.zk-show-form-hint-ok {
+  color: var(--text-success, #4caf50);
+}
+
+.zk-show-form-hint-warn {
+  color: var(--text-warning, var(--text-error));
+}
+
+/* 自定义下拉（替代原生 select，长标题不截断） */
+.zk-show-combo {
+  position: relative;
+}
+
+.zk-show-combo-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+  font-family: var(--font-monospace);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.zk-show-combo-input:hover {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.zk-show-combo-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 3px var(--background-modifier-accent);
+}
+
+.zk-show-combo-input:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.zk-show-combo-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
+  z-index: 50;
+}
+
+.zk-show-combo-panel.is-open {
+  display: block;
+}
+
+.zk-show-combo-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.zk-show-combo-item:hover {
+  background: var(--background-secondary);
+}
+
+.zk-show-combo-item.is-selected {
+  background: var(--background-modifier-accent);
+}
+
+.zk-show-combo-code {
+  font-family: var(--font-monospace);
+  font-weight: 600;
+  color: var(--text-normal);
+  flex: 0 0 auto;
+}
+
+.zk-show-combo-title {
+  color: var(--text-muted);
+  font-size: 12px;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.zk-show-combo-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ===== 右上角切换 zk 话题下拉 ===== */
+.zk-show-topic-switch {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 40;
+  font-family: var(--font-interface);
+}
+
+.zk-show-topic-switch-trigger {
+  padding: 5px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.zk-show-topic-switch-trigger:hover {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.zk-show-topic-switch-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--background-modifier-accent);
+}
+
+.zk-show-topic-switch-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  max-width: min(320px, calc(100vw - 16px));
+  /* 展开时 JS 会把 max-height 收到视图可用高度内；用 border-box 保证 padding/border
+     也算进 max-height，面板底部不会越出视图被裁 */
+  box-sizing: border-box;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+  z-index: 50;
+}
+
+/* 显式样式化滚动条：Chromium 会改用占位的经典滚动条，不再受系统 overlay 设置影响。
+   不用 scrollbar-width/scrollbar-color，标准属性会让 ::-webkit-scrollbar 失效。 */
+.zk-show-root .zk-show-topic-switch-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.zk-show-root .zk-show-topic-switch-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zk-show-root .zk-show-topic-switch-panel::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border-hover);
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background-clip: content-box;
+}
+
+/* touch-action 取祖先链交集，下拉展开期间放开宿主的纵向平移，触摸才能滚动列表 */
+.zk-show-root.zk-show-dropdown-open {
+  touch-action: pan-y;
+}
+
+.zk-show-topic-switch-panel.is-open {
+  display: block;
+}
+
+.zk-show-topic-switch-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.zk-show-topic-switch-item:hover {
+  background: var(--background-secondary);
+}
+
+.zk-show-topic-switch-item.is-selected {
+  background: var(--background-modifier-accent);
+}
+
+.zk-show-topic-switch-code {
+  font-family: var(--font-monospace);
+  font-weight: 600;
+  color: var(--text-normal);
+  flex: 0 0 auto;
+}
+
+.zk-show-topic-switch-title {
+  color: var(--text-muted);
+  font-size: 12px;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* ===== 右下角导航按钮组 ===== */
+.zk-show-nav-buttons {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 40;
+  display: flex;
+  gap: 4px;
+}
+
+.zk-show-nav-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.zk-show-nav-button:hover:not(:disabled) {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.zk-show-nav-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.zk-show-nav-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--background-modifier-accent);
+}
+
+/* ===== 右上角笔记话题切换（多 zkNo 笔记） ===== */
+.zk-show-zkno-switch {
+  position: absolute;
+  top: 42px;
+  right: 8px;
+  z-index: 40;
+  font-family: var(--font-interface);
+}
+</style>
+</head>
+<body>
+<h1>切换zk话题下拉：限高与滚动核对</h1>
+<section>
+  <h2>视图高度 900px · 选项 4 个</h2>
+  <div class="zk-show-root" data-count="4" style="height:900px;width:420px;border:1px solid #888"></div>
+  <pre class="metrics"></pre>
+</section>
+<section>
+  <h2>视图高度 900px · 选项 20 个</h2>
+  <div class="zk-show-root" data-count="20" style="height:900px;width:420px;border:1px solid #888"></div>
+  <pre class="metrics"></pre>
+</section>
+<section>
+  <h2>视图高度 300px · 选项 20 个</h2>
+  <div class="zk-show-root" data-count="20" style="height:300px;width:420px;border:1px solid #888"></div>
+  <pre class="metrics"></pre>
+</section>
+<section>
+  <h2>视图高度 180px · 选项 20 个</h2>
+  <div class="zk-show-root" data-count="20" style="height:180px;width:420px;border:1px solid #888"></div>
+  <pre class="metrics"></pre>
+</section>
+<script>"use strict";
+(() => {
+  // src/dropdown-panel.ts
+  var PANEL_MAX_HEIGHT = 280;
+  var PANEL_MIN_HEIGHT = 64;
+  var PANEL_GAP = 4;
+  var PANEL_MARGIN = 8;
+  var HOST_OPEN_CLASS = "zk-show-dropdown-open";
+  function panelMaxHeight(spaceBelow) {
+    if (!Number.isFinite(spaceBelow)) return PANEL_MAX_HEIGHT;
+    return Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, Math.floor(spaceBelow)));
+  }
+  function scrollItemIntoView(panel, item) {
+    const top = item.offsetTop;
+    const bottom = top + item.offsetHeight;
+    if (top < panel.scrollTop) {
+      panel.scrollTop = top;
+      return;
+    }
+    if (bottom > panel.scrollTop + panel.clientHeight) panel.scrollTop = bottom - panel.clientHeight;
+  }
+  function openDropdownPanel(panel, anchor, host) {
+    panel.style.maxHeight = `${panelMaxHeight(availableHeightBelow(anchor, host))}px`;
+    panel.classList.add("is-open");
+    host?.classList.add(HOST_OPEN_CLASS);
+    const selected = panel.querySelector(".is-selected");
+    if (!selected) {
+      panel.scrollTop = 0;
+      return;
+    }
+    scrollItemIntoView(panel, selected);
+  }
+  function availableHeightBelow(anchor, host) {
+    if (!host) return Number.POSITIVE_INFINITY;
+    const hostRect = host.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    return hostRect.bottom - anchorRect.bottom - PANEL_GAP - PANEL_MARGIN;
+  }
+
+  // src/topic-switch.ts
+  function isNodeLike(target) {
+    return target !== null && target !== void 0 && typeof target.nodeType === "number";
+  }
+  var TopicSwitch = class {
+    constructor() {
+      this.options = [];
+      this.selectedCode = null;
+      this.selectHandler = () => {
+      };
+      this.unbindOutside = null;
+      this.hostEl = null;
+      this.el = document.createElement("div");
+      this.el.className = "zk-show-topic-switch";
+      this.button = document.createElement("button");
+      this.button.type = "button";
+      this.button.className = "zk-show-topic-switch-trigger";
+      this.button.textContent = "\u5207\u6362zk\u8BDD\u9898";
+      this.button.setAttribute("aria-haspopup", "listbox");
+      this.button.addEventListener("click", () => this.toggle());
+      this.button.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") this.close();
+      });
+      this.panel = document.createElement("div");
+      this.panel.className = "zk-show-topic-switch-panel";
+      this.panel.setAttribute("role", "listbox");
+      this.el.appendChild(this.button);
+      this.el.appendChild(this.panel);
+      this.outsidePointerHandler = (ev) => {
+        if (isNodeLike(ev.target) && !this.el.contains(ev.target)) this.close();
+      };
+      this.bindOutside();
+      if (typeof this.el.onWindowMigrated === "function") {
+        this.el.onWindowMigrated(() => this.bindOutside());
+      }
+    }
+    bindOutside() {
+      this.unbindOutside?.();
+      const doc = this.el.ownerDocument ?? document;
+      const handler = this.outsidePointerHandler;
+      doc.addEventListener("pointerdown", handler);
+      this.unbindOutside = () => doc.removeEventListener("pointerdown", handler);
+    }
+    setOptions(options) {
+      this.options = options;
+      this.render();
+    }
+    setSelected(code) {
+      this.selectedCode = code;
+      this.render();
+    }
+    onChange(handler) {
+      this.selectHandler = handler;
+    }
+    close() {
+      this.panel.classList.remove("is-open");
+      this.button.setAttribute("aria-expanded", "false");
+      this.hostEl?.classList.remove(HOST_OPEN_CLASS);
+      this.hostEl = null;
+    }
+    toggle() {
+      if (this.panel.classList.contains("is-open")) {
+        this.close();
+        return;
+      }
+      this.hostEl = this.el.offsetParent ?? this.el.parentElement;
+      openDropdownPanel(this.panel, this.button, this.hostEl);
+      this.button.setAttribute("aria-expanded", "true");
+    }
+    render() {
+      this.panel.innerHTML = "";
+      for (const option of this.options) {
+        const item = document.createElement("div");
+        item.className = "zk-show-topic-switch-item";
+        item.setAttribute("role", "option");
+        if (option.code === this.selectedCode) item.classList.add("is-selected");
+        const code = document.createElement("span");
+        code.className = "zk-show-topic-switch-code";
+        code.textContent = option.code;
+        const title = document.createElement("span");
+        title.className = "zk-show-topic-switch-title";
+        title.textContent = option.title;
+        item.appendChild(code);
+        item.appendChild(title);
+        item.setAttribute("tabindex", "0");
+        item.addEventListener("click", () => {
+          this.selectedCode = option.code;
+          this.selectHandler(option.code);
+          this.close();
+        });
+        item.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            item.click();
+          }
+        });
+        this.panel.appendChild(item);
+      }
+    }
+    destroy() {
+      this.close();
+      this.unbindOutside?.();
+      this.el.remove();
+    }
+  };
+
+  // .preview-switch-tmp.ts
+  globalThis.__mountSwitch = (host, count) => {
+    const sw = new TopicSwitch();
+    host.appendChild(sw.el);
+    sw.setOptions(
+      Array.from({ length: count }, (_, i) => ({
+        code: String((i + 1) * (i % 3 === 2 ? 2 : 1)),
+        title: "\u7B2C " + (i + 1) + " \u53F7\u6839\u8BDD\u9898\u6807\u9898\uFF08\u793A\u4F8B\uFF09"
+      }))
+    );
+    sw.setSelected("1");
+    const trigger = sw.el.querySelector(".zk-show-topic-switch-trigger");
+    trigger.click();
+    const panel = sw.el.querySelector(".zk-show-topic-switch-panel");
+    panel.scrollTop = panel.scrollHeight;
+    const items = panel.querySelectorAll(".zk-show-topic-switch-item");
+    const last = items[items.length - 1];
+    const hostBottom = host.getBoundingClientRect().bottom;
+    return [
+      "\u89C6\u56FE\u9AD8\u5EA6=" + host.clientHeight + " \u9009\u9879\u6570=" + count,
+      "\u9762\u677F client=" + panel.clientHeight + " scroll=" + panel.scrollHeight + " maxHeight=" + panel.style.maxHeight,
+      "\u9762\u677F bottom=" + Math.round(panel.getBoundingClientRect().bottom) + " \u89C6\u56FE bottom=" + Math.round(hostBottom),
+      "\u6EDA\u5230\u5E95\u540E\u6700\u540E\u4E00\u9879\u53EF\u89C1=" + (last.getBoundingClientRect().bottom <= hostBottom),
+      "\u6EDA\u52A8\u6761\u5360\u4F4D=" + (panel.offsetWidth - panel.clientWidth) + "px",
+      "\u5BBF\u4E3B touch-action=" + getComputedStyle(host).touchAction + " \u9762\u677F overscroll-behavior=" + getComputedStyle(panel).overscrollBehavior
+    ].join("\n");
+  };
+})();
+</script>
+<script>
+for (const host of document.querySelectorAll(".zk-show-root")) {
+  host.parentElement.querySelector("pre.metrics").textContent = globalThis.__mountSwitch(host, Number(host.dataset.count));
+}
+</script>
+</body>
+</html>
