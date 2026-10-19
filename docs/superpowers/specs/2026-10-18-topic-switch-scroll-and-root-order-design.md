@@ -41,34 +41,41 @@
 
 ### 2. 面板适配与滚动（新增 `src/dropdown-panel.ts`）
 
-两个下拉（「切换zk话题」「笔记话题」）共用同一个面板样式，抽出一个只做几何计算的小模块：
+两个下拉（「切换zk话题」「笔记话题」）共用同一个面板样式，抽出一个只做面板几何与展开的小模块：
 
 ```ts
 export const PANEL_MAX_HEIGHT = 280; // 与 styles.css 的 max-height 上限一致
+export const PANEL_MIN_HEIGHT = 64;  // 视图极矮时的保底高度（约一个半条目）
 export const PANEL_GAP = 4;          // 与 styles.css 的 top: calc(100% + 4px) 一致
-export const PANEL_MARGIN = 8;       // 面板底部与宿主底部的安全间距
-export const PANEL_MIN_HEIGHT = 64;  // 极端小窗保底高度
+export const PANEL_MARGIN = 8;       // 面板底部与宿主底部之间保留的间距
+export const HOST_OPEN_CLASS = "zk-show-dropdown-open";
 
-/** 可用空间足够时取上限，不足时贴合可用空间，极端小窗保底。 */
+/** 可用空间足够时取上限，不足时贴合可用空间，极矮视图保底；非有限值回退上限。 */
 export function panelMaxHeight(spaceBelow: number): number;
 
-/** 用宿主与触发按钮的实测矩形设置 panel.style.maxHeight。 */
-export function fitPanelToHost(panel: HTMLElement, anchor: HTMLElement, host: HTMLElement | null): void;
+/** 把选中项滚入可视区，只改面板自身的 scrollTop，不触发祖先滚动。 */
+export function scrollItemIntoView(panel: HTMLElement, item: HTMLElement): void;
+
+/** 展开面板：按宿主可用空间限制高度 → 显示 → 标记宿主（放开触摸滚动）→ 选中项滚入视野。 */
+export function openDropdownPanel(panel: HTMLElement, anchor: HTMLElement, host: HTMLElement | null): void;
 ```
 
-`fitPanelToHost` 取 `spaceBelow = hostRect.bottom - anchorRect.bottom - PANEL_GAP - PANEL_MARGIN`，其中宿主 = `el.offsetParent ?? el.parentElement`（面板绝对定位在 `.zk-show-root` 内，`offsetParent` 即该视图根）。非有限值时回退到上限，避免 happy-dom 等无布局环境写出 `NaN`。
-
-`TopicSwitch` 与 `ZkNoSwitch` 在展开时调用 `fitPanelToHost`；`TopicSwitch` 展开后把 `.is-selected` 项 `scrollIntoView({ block: "nearest" })`，没有选中项则 `panel.scrollTop = 0`，保证当前话题始终可见。
+- 高度：`spaceBelow = hostRect.bottom - anchorRect.bottom - PANEL_GAP - PANEL_MARGIN`，宿主 = `el.offsetParent ?? el.parentElement`（面板绝对定位在 `.zk-show-root` 内，`offsetParent` 即该视图根）。非有限值时回退到上限，避免无布局环境（happy-dom）写出 `NaN`。
+- 选中项滚入视野用面板 `scrollTop` 手算（`offsetTop` 相对面板，面板是定位元素），不用 `scrollIntoView`，避免顺带滚动 Obsidian 视图容器。没有选中项时 `scrollTop = 0`。
+- `TopicSwitch` 与 `ZkNoSwitch` 展开时调用 `openDropdownPanel`，`close()` 时移除宿主的 `HOST_OPEN_CLASS`。
 
 ### 3. 样式（`styles.css`）
 
 `.zk-show-topic-switch-panel` 追加：
 
-- `touch-action: pan-y`（穿透祖先的 `none`，恢复触摸纵向滚动）；
 - `overscroll-behavior: contain`（滚到边界不把滚动传给画布/视图）；
-- `scrollbar-width: thin` 与作用域化的 `::-webkit-scrollbar`（宽 10px、thumb 用 `--background-modifier-border-hover`、track 透明）。显式样式化后 Chromium 使用占位的经典滚动条，不再受系统 overlay 设置影响，滚动条常显。
+- 作用域化的 `::-webkit-scrollbar`（宽 10px、thumb 用 `--background-modifier-border-hover`、track 透明）。显式样式化后 Chromium 使用**占位**的经典滚动条，不再受系统 overlay 设置影响，滚动条常显。
+  不用标准属性 `scrollbar-width`/`scrollbar-color`：Chromium 一旦设置标准属性就会忽略 `::-webkit-scrollbar` 规则，行为反而不可控。
+  选择器写 `.zk-show-root .zk-show-topic-switch-panel::-webkit-scrollbar`，以免被 Obsidian 全局滚动条规则按优先级覆盖。
 
-选择器写 `.zk-show-root .zk-show-topic-switch-panel::-webkit-scrollbar`，以免被 Obsidian 全局滚动条规则按优先级覆盖。
+`.zk-show-root.zk-show-dropdown-open { touch-action: pan-y; }`：
+
+`touch-action` 的有效值是目标到视口整条祖先链的交集，祖先 `.zk-show-root { touch-action: none }` 会直接吃掉面板的纵向滑动。因此下拉展开时给宿主加 `zk-show-dropdown-open` 类放开纵向平移，收起时移除（画布拖拽在此期间仍走指针事件，现有 ignore-list 已排除下拉区域）。
 
 删除 `.zk-show-topic-switch-item.is-ghost` 与 `.is-ghost:hover` 两条规则。
 
@@ -90,9 +97,11 @@ export function fitPanelToHost(panel: HTMLElement, anchor: HTMLElement, host: HT
   - 幽灵根：只有 `3/1` 时 `collectRootTopics` 不返回 `"3"`；
   - 真实根保留标题；非根节点不返回。
 - `test/dropdown-panel.test.ts`（新增）
-  - 可用空间充足 → 上限 280；空间不足 → 贴合空间；小于保底 → 保底 64；非有限值 → 回退上限。
+  - 可用空间充足 → 上限 280；空间不足 → 贴合空间；小于保底 → 保底 64；非有限值 → 回退上限；
+  - `scrollItemIntoView`：选中项在可视区上方/下方时分别修正 `scrollTop`，已在可视区则不动；
+  - `openDropdownPanel`：写入面板 `maxHeight`、加 `is-open`、给宿主加 `HOST_OPEN_CLASS`。
 - `test/topic-switch.test.ts`
-  - 展开时写入 `panel.style.maxHeight`（happy-dom 无布局、矩形全 0，走保底分支 → `64px`）；
+  - 展开时写入 `panel.style.maxHeight`（happy-dom 无布局、矩形全 0，走保底分支 → `64px`），并给宿主加 `zk-show-dropdown-open`，收起后移除；
   - 删除幽灵选项用例，改为「全部选项可点击」。
 
 ## 验证
