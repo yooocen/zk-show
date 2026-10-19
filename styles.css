@@ -849,6 +849,9 @@
   right: 0;
   min-width: 200px;
   max-width: min(320px, calc(100vw - 16px));
+  /* 展开时 JS 会把 max-height 收到视图可用高度内；用 border-box 保证 padding/border
+     也算进 max-height，面板底部不会越出视图被裁 */
+  box-sizing: border-box;
   max-height: 280px;
   overflow-y: auto;
   overscroll-behavior: contain;
