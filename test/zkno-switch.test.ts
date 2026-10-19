@@ -93,4 +93,28 @@ describe("ZkNoSwitch", () => {
     expect(sw.el.querySelector(".zk-show-topic-switch-panel")?.classList.contains("is-open")).toBe(false);
     sw.destroy();
   });
+
+  it("展开时限制高度并标记宿主，收起时解除", () => {
+    const host = document.createElement("div");
+    host.className = "zk-show-root";
+    document.body.appendChild(host);
+    const sw = new ZkNoSwitch();
+    host.appendChild(sw.el);
+    sw.render(
+      [
+        { rootCode: "1", rootTitle: "数学", zkNo: "1/11a" },
+        { rootCode: "2", rootTitle: "编程", zkNo: "2/2a" },
+      ],
+      "1/11a"
+    );
+    const trigger = sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-trigger")!;
+    trigger.click();
+    const panel = sw.el.querySelector<HTMLElement>(".zk-show-topic-switch-panel")!;
+    expect(panel.style.maxHeight).toBe("64px");
+    expect(host.classList.contains("zk-show-dropdown-open")).toBe(true);
+    trigger.click();
+    expect(host.classList.contains("zk-show-dropdown-open")).toBe(false);
+    sw.destroy();
+    host.remove();
+  });
 });

@@ -1,4 +1,5 @@
 import type { TopicGraph } from "./topic-graph";
+import { HOST_OPEN_CLASS, openDropdownPanel } from "./dropdown-panel";
 
 export interface ZkNoSwitchOption {
   rootCode: string;
@@ -45,6 +46,7 @@ export class ZkNoSwitch {
   private selectHandler: (zkNo: string) => void = () => {};
   private readonly outsidePointerHandler: (ev: PointerEvent) => void;
   private unbindOutside: (() => void) | null = null;
+  private hostEl: HTMLElement | null = null;
 
   constructor() {
     this.el = document.createElement("div");
@@ -106,16 +108,25 @@ export class ZkNoSwitch {
   close(): void {
     this.panel.classList.remove("is-open");
     this.button.setAttribute("aria-expanded", "false");
+    this.hostEl?.classList.remove(HOST_OPEN_CLASS);
+    this.hostEl = null;
   }
 
   destroy(): void {
+    this.close();
     this.unbindOutside?.();
     this.el.remove();
   }
 
   private toggle(): void {
-    const isOpen = this.panel.classList.toggle("is-open");
-    this.button.setAttribute("aria-expanded", String(isOpen));
+    if (this.panel.classList.contains("is-open")) {
+      this.close();
+      return;
+    }
+    // 与 TopicSwitch 一致：面板定位在视图根内，offsetParent 即宿主
+    this.hostEl = (this.el.offsetParent as HTMLElement | null) ?? this.el.parentElement;
+    openDropdownPanel(this.panel, this.button, this.hostEl);
+    this.button.setAttribute("aria-expanded", "true");
   }
 
   private renderPanel(): void {
