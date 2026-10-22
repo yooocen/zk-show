@@ -10,8 +10,9 @@
  */
 import { App, Modal, Notice, TFile } from "obsidian";
 import { parseZettelkastenNo } from "./parser";
+import { ComboField } from "./combo-field";
 import { formatUnit, isDigitUnit, isLetterUnit, lastUnit, unitNumber } from "./model-units";
-import { TopicGraph, type TopicGraphNode } from "./topic-graph";
+import { TopicGraph, collectRootTopics, type TopicGraphNode } from "./topic-graph";
 
 type Mode = "manual" | "infer";
 
@@ -153,11 +154,13 @@ export class ZkNoFormModal extends Modal {
   }
 
   private rebuildRootCombo(): void {
-    const roots = this.roots();
+    // 只列真实存在的根话题（有对应 md），缺号不补；幽灵根（如只有 3/1 而没有 3.md）
+    // 不进下拉，否则会显示成一条没有标题的空条目。
+    const roots = collectRootTopics(this.index);
     this.rootCombo.setOptions(
-      roots.map((r) => ({ value: r.root, code: r.root, title: r.title ?? "" })),
+      roots.map((r) => ({ value: r.code, code: r.code, title: r.title })),
     );
-    if (this.selectedRoot && roots.some((r) => r.root === this.selectedRoot)) {
+    if (this.selectedRoot && roots.some((r) => r.code === this.selectedRoot)) {
       this.rootCombo.setValue(this.selectedRoot);
     } else {
       this.selectedRoot = "";
@@ -340,25 +343,6 @@ export class ZkNoFormModal extends Modal {
     }
   }
 
-  private roots(): { root: string; title: string | null }[] {
-    const titles = new Map<string, string>();
-    const rootSet = new Set<string>();
-    for (const n of this.index.allNodes()) {
-      if (n.isGhost || !n.path) continue;
-      const p = parseZettelkastenNo(n.code);
-      if (!p) continue;
-      const root = p.path[0];
-      rootSet.add(root);
-      // 根节点：path 恰为单元素（code === root），其笔记标题即话题根标题
-      if (p.path.length === 1 && n.title && !titles.has(root)) {
-        titles.set(root, n.title);
-      }
-    }
-    return [...rootSet]
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-      .map((root) => ({ root, title: titles.get(root) ?? null }));
-  }
-
   private parentCandidates(root: string): TopicGraphNode[] {
     const out: TopicGraphNode[] = [];
     for (const n of this.index.allNodes()) {
@@ -400,131 +384,5 @@ export class ZkNoFormModal extends Modal {
     if (!p) return `${parentCode}${formatUnit(unit)}`;
     const newPath = [...p.path, unit];
     return newPath.length <= 1 ? newPath[0] : `${newPath[0]}/${newPath.slice(1).map(formatUnit).join("")}`;
-  }
-}
-
-interface ComboOption {
-  value: string;
-  code: string;
-  title: string;
-}
-
-/**
- * 轻量自定义下拉：input 过滤 + 浮层面板。相比原生 <select>，面板内条目可自动换行，
- * 长标题不会被截断；选中后在输入框显示「code　title」。
- */
-class ComboField {
-  readonly el: HTMLElement;
-  private readonly input: HTMLInputElement;
-  private readonly panel: HTMLElement;
-  private options: ComboOption[] = [];
-  private selectedValue = "";
-  private changeHandler: (value: string) => void = () => {};
-  private blurTimer: number | null = null;
-
-  constructor(placeholder: string) {
-    this.el = document.createElement("div");
-    this.el.className = "zk-show-combo";
-    this.input = document.createElement("input");
-    this.input.type = "text";
-    this.input.className = "zk-show-combo-input";
-    this.input.placeholder = placeholder;
-    this.input.setAttribute("autocomplete", "off");
-    this.panel = document.createElement("div");
-    this.panel.className = "zk-show-combo-panel";
-    this.el.appendChild(this.input);
-    this.el.appendChild(this.panel);
-
-    this.input.addEventListener("focus", () => this.open());
-    this.input.addEventListener("input", () => {
-      this.selectedValue = "";
-      this.changeHandler("");
-      this.render(this.filter());
-      this.panel.classList.add("is-open");
-    });
-    this.input.addEventListener("blur", () => {
-      this.blurTimer = window.setTimeout(() => this.close(), 150);
-    });
-  }
-
-  setDisabled(disabled: boolean): void {
-    this.input.disabled = disabled;
-    if (disabled) this.close();
-  }
-
-  setOptions(opts: ComboOption[]): void {
-    this.options = opts;
-  }
-
-  setValue(value: string): void {
-    this.selectedValue = value;
-    const opt = this.options.find((o) => o.value === value);
-    this.input.value = opt ? `${opt.code}　${opt.title}` : "";
-  }
-
-  clear(): void {
-    this.options = [];
-    this.selectedValue = "";
-    this.input.value = "";
-    this.close();
-  }
-
-  onChange(cb: (value: string) => void): void {
-    this.changeHandler = cb;
-  }
-
-  private open(): void {
-    this.render(this.options);
-    this.panel.classList.add("is-open");
-  }
-
-  private close(): void {
-    this.panel.classList.remove("is-open");
-    if (this.blurTimer !== null) {
-      window.clearTimeout(this.blurTimer);
-      this.blurTimer = null;
-    }
-  }
-
-  private filter(): ComboOption[] {
-    const q = this.input.value.trim().toLowerCase();
-    if (!q) return this.options;
-    return this.options.filter((o) => `${o.code} ${o.title}`.toLowerCase().includes(q));
-  }
-
-  private render(list: ComboOption[]): void {
-    this.panel.innerHTML = "";
-    if (list.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "zk-show-combo-empty";
-      empty.textContent = "（无匹配项）";
-      this.panel.appendChild(empty);
-      return;
-    }
-    for (const o of list) {
-      const item = document.createElement("div");
-      item.className = "zk-show-combo-item";
-      if (o.value === this.selectedValue) item.classList.add("is-selected");
-      const code = document.createElement("span");
-      code.className = "zk-show-combo-code";
-      code.textContent = o.code;
-      const title = document.createElement("span");
-      title.className = "zk-show-combo-title";
-      title.textContent = o.title;
-      item.appendChild(code);
-      item.appendChild(title);
-      item.addEventListener("mousedown", (ev) => {
-        ev.preventDefault();
-        this.select(o);
-      });
-      this.panel.appendChild(item);
-    }
-  }
-
-  private select(o: ComboOption): void {
-    this.selectedValue = o.value;
-    this.input.value = `${o.code}　${o.title}`;
-    this.close();
-    this.changeHandler(o.value);
   }
 }

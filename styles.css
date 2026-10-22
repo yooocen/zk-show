@@ -724,7 +724,9 @@
   color: var(--text-warning, var(--text-error));
 }
 
-/* 自定义下拉（替代原生 select，长标题不截断） */
+/* 自定义下拉（替代原生 select，长标题不截断）。
+   展开时 JS 会改成 position: fixed 并写入 left/top/width/max-height：弹窗的
+   .modal / .modal-content 都是滚动容器，绝对定位的面板会被它们裁掉，越界选项点不中。 */
 .zk-show-combo {
   position: relative;
 }
@@ -762,14 +764,41 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  max-height: 240px;
+  /* 展开时 JS 会改写定位；用 border-box 让 padding/border 也算进 max-height，
+     面板底部不会越出可用空间 */
+  box-sizing: border-box;
+  max-height: 280px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, .18);
   z-index: 50;
+}
+
+/* 向上展开时阴影朝上，视觉上仍贴着锚点 */
+.zk-show-combo-panel.is-above {
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, .18);
+}
+
+/* 显式样式化滚动条：Chromium 会改用占位的经典滚动条，不再受系统 overlay 设置影响。
+   不用 scrollbar-width/scrollbar-color，标准属性会让 ::-webkit-scrollbar 失效。
+   选择器要压过 Obsidian 的 body:not(.native-scrollbars) ::-webkit-scrollbar，故带上 .zk-show-form。 */
+.zk-show-form .zk-show-combo-panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.zk-show-form .zk-show-combo-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zk-show-form .zk-show-combo-panel::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border-hover);
+  border: 2px solid transparent;
+  border-radius: 5px;
+  background-clip: content-box;
 }
 
 .zk-show-combo-panel.is-open {
